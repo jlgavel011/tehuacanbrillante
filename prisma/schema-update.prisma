@@ -1,0 +1,47 @@
+// New English models for Production Lines module
+
+// Production line models
+model ProductionLine {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  systems       System[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("production_lines")
+}
+
+model System {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  productionLineId  String          @db.ObjectId
+  productionLine    ProductionLine  @relation(fields: [productionLineId], references: [id], onDelete: Cascade)
+  subsystems        Subsystem[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@map("systems")
+}
+
+model Subsystem {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  systemId      String          @db.ObjectId
+  system        System          @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  subsubsystems Subsubsystem[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@map("subsystems")
+}
+
+model Subsubsystem {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  subsystemId   String      @db.ObjectId
+  subsystem     Subsystem   @relation(fields: [subsystemId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("subsubsystems")
+} 

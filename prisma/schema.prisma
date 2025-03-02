@@ -1,0 +1,206 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// User models
+model User {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String   @unique
+  password      String?
+  image         String?
+  role          Role     @default(PRODUCTION_CHIEF)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum Role {
+  MASTER_ADMIN
+  MANAGER
+  PRODUCTION_CHIEF
+}
+
+// Production line models
+model LineaProduccion {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  nombre        String
+  sistemas      Sistema[]
+  producciones  Produccion[]
+  paros         Paro[]
+  productos     ProductoEnLinea[]
+
+  @@map("lineas_produccion")
+}
+
+model Sistema {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  nombre           String
+  lineaProduccionId String        @db.ObjectId
+  lineaProduccion  LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
+  subsistemas      Subsistema[]
+
+  @@map("sistemas")
+}
+
+model Subsistema {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  nombre        String
+  sistemaId     String          @db.ObjectId
+  sistema       Sistema         @relation(fields: [sistemaId], references: [id])
+  subsubsistemas Subsubsistema[]
+  paros         Paro[]
+
+  @@map("subsistemas")
+}
+
+model Subsubsistema {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  nombre        String
+  subsistemaId  String      @db.ObjectId
+  subsistema    Subsistema  @relation(fields: [subsistemaId], references: [id])
+  paros         Paro[]
+
+  @@map("subsubsistemas")
+}
+
+// Product models
+model Caja {
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  numeroUnidades  Int
+  productos       Producto[]
+
+  @@map("cajas")
+}
+
+model MateriaPrima {
+  id             String                @id @default(auto()) @map("_id") @db.ObjectId
+  nombre         String
+  productos      ProductoMateriaPrima[]
+
+  @@map("materias_primas")
+}
+
+model Modelo {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  nombre         String
+  productos      Producto[]
+
+  @@map("modelos")
+}
+
+model TipoParo {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  nombre         String
+  paros          Paro[]
+
+  @@map("tipos_paros")
+}
+
+model Sabor {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  nombre         String
+  productos      Producto[]
+
+  @@map("sabores")
+}
+
+model Tamaño {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  litros         Float
+  productos      Producto[]
+
+  @@map("tamaños")
+}
+
+model Producto {
+  id             String                @id @default(auto()) @map("_id") @db.ObjectId
+  nombre         String
+  cajaId         String                @db.ObjectId
+  caja           Caja                  @relation(fields: [cajaId], references: [id])
+  modeloId       String                @db.ObjectId
+  modelo         Modelo                @relation(fields: [modeloId], references: [id])
+  tamañoId       String                @db.ObjectId
+  tamaño         Tamaño                @relation(fields: [tamañoId], references: [id])
+  saborId        String                @db.ObjectId
+  sabor          Sabor                 @relation(fields: [saborId], references: [id])
+  materiasPrimas ProductoMateriaPrima[]
+  producciones   Produccion[]
+  lineasProduccion ProductoEnLinea[]
+
+  @@map("productos")
+}
+
+// Production models
+model Produccion {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  numeroOrden       Int
+  cajasProducidas   Int             @default(0)
+  cajasPlanificadas Int
+  turno             Int
+  fechaProduccion   DateTime
+  lineaProduccionId String          @db.ObjectId
+  lineaProduccion   LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
+  productoId        String          @db.ObjectId
+  producto          Producto        @relation(fields: [productoId], references: [id])
+  paros             Paro[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@map("producciones")
+}
+
+model Paro {
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  tiempoMinutos     Int
+  tipoParoId        String           @db.ObjectId
+  tipoParo          TipoParo         @relation(fields: [tipoParoId], references: [id])
+  produccionId      String           @db.ObjectId
+  produccion        Produccion       @relation(fields: [produccionId], references: [id])
+  lineaProduccionId String           @db.ObjectId
+  lineaProduccion   LineaProduccion  @relation(fields: [lineaProduccionId], references: [id])
+  subsistemaId      String?          @db.ObjectId
+  subsistema        Subsistema?      @relation(fields: [subsistemaId], references: [id])
+  subsubsistemaId   String?          @db.ObjectId
+  subsubsistema     Subsubsistema?   @relation(fields: [subsubsistemaId], references: [id])
+  descripcion       String?
+  fechaInicio       DateTime         @default(now())
+  fechaFin          DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@map("paros")
+}
+
+// Many-to-many relationship models
+model ProductoMateriaPrima {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  productoId      String       @db.ObjectId
+  producto        Producto     @relation(fields: [productoId], references: [id])
+  materiaPrimaId  String       @db.ObjectId
+  materiaPrima    MateriaPrima @relation(fields: [materiaPrimaId], references: [id])
+
+  @@map("productos_materias_primas")
+}
+
+model ProductoEnLinea {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  productoId        String          @db.ObjectId
+  producto          Producto        @relation(fields: [productoId], references: [id])
+  lineaProduccionId String          @db.ObjectId
+  lineaProduccion   LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
+
+  @@map("productos_en_lineas")
+}
