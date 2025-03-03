@@ -26,7 +26,7 @@ export async function GET(
           include: {
             system: {
               include: {
-                productionLine: true,
+                lineaProduccion: true,
               },
             },
           },
@@ -43,7 +43,7 @@ export async function GET(
 
     return NextResponse.json(subsubsystem);
   } catch (error) {
-    console.error("Error fetching subsubsystem:", error);
+    console.error("Error obteniendo sub-subsistema:", error);
     return NextResponse.json(
       { error: "Error al obtener el sub-subsistema" },
       { status: 500 }
@@ -65,84 +65,55 @@ export async function PUT(
 
     const { id } = params;
     const body = await request.json();
-    const { name, subsystemId } = body;
 
-    if (!name || typeof name !== "string" || name.trim() === "") {
+    // Validación básica de datos
+    if (!body.nombre) {
       return NextResponse.json(
-        { error: "El nombre del sub-subsistema es requerido" },
+        { error: "El nombre es requerido" },
         { status: 400 }
       );
     }
 
-    if (!subsystemId || typeof subsystemId !== "string") {
-      return NextResponse.json(
-        { error: "El subsistema es requerido" },
-        { status: 400 }
-      );
-    }
-
-    // Check if the subsubsystem exists
-    const subsubsystem = await prisma.subsubsystem.findUnique({
+    // Verificar si el sub-subsistema existe
+    const existingSubsubsystem = await prisma.subsubsystem.findUnique({
       where: {
         id,
       },
     });
 
-    if (!subsubsystem) {
+    if (!existingSubsubsystem) {
       return NextResponse.json(
         { error: "Sub-subsistema no encontrado" },
         { status: 404 }
       );
     }
 
-    // Check if the subsystem exists
-    const subsystem = await prisma.subsystem.findUnique({
-      where: {
-        id: subsystemId,
-      },
-    });
-
-    if (!subsystem) {
-      return NextResponse.json(
-        { error: "Subsistema no encontrado" },
-        { status: 404 }
-      );
-    }
-
-    // Check if another subsubsystem with this name already exists in the same subsystem
-    const existingSubsubsystem = await prisma.subsubsystem.findFirst({
-      where: {
-        name: {
-          equals: name,
-          mode: 'insensitive',
-        },
-        subsystemId,
-        id: {
-          not: id,
-        },
-      },
-    });
-
-    if (existingSubsubsystem) {
-      return NextResponse.json(
-        { error: "Ya existe otro sub-subsistema con este nombre en este subsistema" },
-        { status: 400 }
-      );
-    }
-
+    // Actualizar el sub-subsistema
     const updatedSubsubsystem = await prisma.subsubsystem.update({
       where: {
         id,
       },
       data: {
-        name,
-        subsystemId,
+        nombre: body.nombre,
+        descripcion: body.descripcion,
+        estado: body.estado,
+        criticidad: body.criticidad,
+        fechaInstalacion: body.fechaInstalacion
+          ? new Date(body.fechaInstalacion)
+          : undefined,
+        ultimoMantenimiento: body.ultimoMantenimiento
+          ? new Date(body.ultimoMantenimiento)
+          : undefined,
+        proximoMantenimiento: body.proximoMantenimiento
+          ? new Date(body.proximoMantenimiento)
+          : undefined,
+        subsystemId: body.subsystemId,
       },
     });
 
     return NextResponse.json(updatedSubsubsystem);
   } catch (error) {
-    console.error("Error updating subsubsystem:", error);
+    console.error("Error actualizando sub-subsistema:", error);
     return NextResponse.json(
       { error: "Error al actualizar el sub-subsistema" },
       { status: 500 }
@@ -164,30 +135,33 @@ export async function DELETE(
 
     const { id } = params;
 
-    // Check if the subsubsystem exists
-    const subsubsystem = await prisma.subsubsystem.findUnique({
+    // Verificar si el sub-subsistema existe
+    const existingSubsubsystem = await prisma.subsubsystem.findUnique({
       where: {
         id,
       },
     });
 
-    if (!subsubsystem) {
+    if (!existingSubsubsystem) {
       return NextResponse.json(
         { error: "Sub-subsistema no encontrado" },
         { status: 404 }
       );
     }
 
-    // Delete the subsubsystem
+    // Eliminar el sub-subsistema
     await prisma.subsubsystem.delete({
       where: {
         id,
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { message: "Sub-subsistema eliminado correctamente" },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("Error deleting subsubsystem:", error);
+    console.error("Error eliminando sub-subsistema:", error);
     return NextResponse.json(
       { error: "Error al eliminar el sub-subsistema" },
       { status: 500 }

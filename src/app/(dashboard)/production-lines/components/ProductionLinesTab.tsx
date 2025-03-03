@@ -48,7 +48,35 @@ export function ProductionLinesTab() {
   };
 
   useEffect(() => {
+    // Listen for the custom event from HierarchicalView
+    const handleEditProductionLine = (event: CustomEvent) => {
+      const storedData = localStorage.getItem("editProductionLine");
+      if (storedData) {
+        const productionLine = JSON.parse(storedData);
+        setIsEditMode(true);
+        setCurrentProductionLine(productionLine);
+        setNewProductionLineName(productionLine.name);
+        setIsDialogOpen(true);
+        localStorage.removeItem("editProductionLine");
+      }
+    };
+
+    // Add event listener
+    document.addEventListener("editProductionLine", handleEditProductionLine as EventListener);
+
+    // Check localStorage on initial load for any pre-selection
+    const checkLocalStorage = () => {
+      // This would be set from the hierarchical view when a user clicks "Add" on a production line
+      localStorage.removeItem("editProductionLine");
+    };
+    
+    checkLocalStorage();
     fetchProductionLines();
+
+    // Clean up
+    return () => {
+      document.removeEventListener("editProductionLine", handleEditProductionLine as EventListener);
+    };
   }, []);
 
   const handleCreateProductionLine = async () => {
@@ -143,26 +171,20 @@ export function ProductionLinesTab() {
     }
   };
 
-  const openCreateDialog = () => {
-    setIsEditMode(false);
-    setNewProductionLineName("");
-    setCurrentProductionLine(null);
-    setIsDialogOpen(true);
-  };
-
-  const openEditDialog = (productionLine: ProductionLine) => {
-    setIsEditMode(true);
-    setCurrentProductionLine(productionLine);
-    setNewProductionLineName(productionLine.name);
-    setIsDialogOpen(true);
-  };
-
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-black">Líneas de Producción</h2>
-        <Button onClick={openCreateDialog} className="flex items-center gap-1">
-          <PlusCircle className="h-4 w-4" /> Agregar Línea
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Líneas de Producción</h3>
+        <Button 
+          id="add-production-line-button"
+          onClick={() => {
+            setIsEditMode(false);
+            setCurrentProductionLine(null);
+            setNewProductionLineName("");
+            setIsDialogOpen(true);
+          }}
+        >
+          <PlusCircle className="h-4 w-4 mr-2" /> Añadir
         </Button>
       </div>
 
@@ -175,7 +197,16 @@ export function ProductionLinesTab() {
           <CardContent className="py-10">
             <div className="text-center text-black">
               <p>No hay líneas de producción registradas.</p>
-              <Button onClick={openCreateDialog} variant="link" className="mt-2">
+              <Button 
+                onClick={() => {
+                  setIsEditMode(false);
+                  setCurrentProductionLine(null);
+                  setNewProductionLineName("");
+                  setIsDialogOpen(true);
+                }}
+                variant="link"
+                className="mt-2"
+              >
                 Crear una línea de producción
               </Button>
             </div>
@@ -193,7 +224,12 @@ export function ProductionLinesTab() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => openEditDialog(productionLine)}
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setCurrentProductionLine(productionLine);
+                      setNewProductionLineName(productionLine.name);
+                      setIsDialogOpen(true);
+                    }}
                     className="h-8 px-2"
                   >
                     <Pencil className="h-4 w-4" />

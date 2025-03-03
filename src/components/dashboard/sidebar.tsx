@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   Users,
+  Package,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebar } from "@/lib/context/SidebarContext";
@@ -22,6 +23,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, description: "Visión general de la plataforma" },
   { name: "Órdenes de Producción", href: "/production-orders", icon: ClipboardList, description: "Gestionar órdenes de producción" },
   { name: "Líneas de Producción", href: "/production-lines", icon: Factory, description: "Monitorear líneas de producción" },
+  { name: "Productos", href: "/productos", icon: Package, description: "Gestionar productos" },
   { name: "Analítica", href: "/analytics", icon: BarChart2, description: "Ver analítica y reportes" },
 ];
 
@@ -32,13 +34,27 @@ const secondaryNavigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { sidebarOpen } = useSidebar();
+  const { sidebarOpen, closeSidebar } = useSidebar();
   const [mounted, setMounted] = useState(false);
 
   // Handle hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Handle ESC key to close sidebar on mobile
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && sidebarOpen && window.innerWidth < 768) {
+        closeSidebar();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscKey);
+    return () => {
+      window.removeEventListener('keydown', handleEscKey);
+    };
+  }, [sidebarOpen, closeSidebar]);
 
   if (!mounted) {
     return null;
@@ -49,20 +65,25 @@ export function Sidebar() {
       {/* Backdrop for mobile - shows when sidebar is open */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 z-10 bg-black/50 backdrop-blur-sm md:hidden transition-opacity duration-300 ease-in-out" 
-          onClick={() => useSidebar().closeSidebar()}
-          aria-hidden="true"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden transition-all duration-300 ease-in-out" 
+          onClick={closeSidebar}
+          role="button"
+          tabIndex={0}
+          aria-label="Close sidebar"
         />
       )}
       
       {/* Sidebar */}
       <div 
+        data-sidebar
         className={cn(
-          "fixed inset-y-0 left-0 z-20 flex flex-col bg-white border-r border-gray-200 shadow-md transition-all duration-300 ease-in-out",
-          sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full md:translate-x-0 md:w-20"
+          "fixed inset-y-0 left-0 z-50 flex flex-col bg-white border-r border-gray-200 shadow-md transition-all duration-300 ease-in-out",
+          sidebarOpen 
+            ? "translate-x-0 w-64" 
+            : "-translate-x-full md:translate-x-0 md:w-20"
         )}
       >
-        <div className="flex h-16 shrink-0 items-center justify-center border-b border-gray-200 px-4 sm:px-6">
+        <div className="flex h-16 shrink-0 items-center justify-center px-4 sm:px-6">
           <div className="flex items-center space-x-3">
             <div className="h-8 w-2 bg-primary rounded-l-md"></div>
             {sidebarOpen && <span className="font-bold text-xl text-black truncate">Tehuacán Brillante</span>}
@@ -86,13 +107,19 @@ export function Sidebar() {
                             : "text-black hover:bg-gray-100 hover:text-primary border-l-4 border-transparent",
                           !sidebarOpen && "justify-center px-2"
                         )}
+                        onClick={() => {
+                          // Close sidebar on mobile when a link is clicked
+                          if (window.innerWidth < 768) {
+                            closeSidebar();
+                          }
+                        }}
                         aria-current={isActive ? "page" : undefined}
                       >
                         <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-black", sidebarOpen && "mr-3")} />
                         {sidebarOpen && <span>{item.name}</span>}
                       </Link>
                     </TooltipTrigger>
-                    <TooltipContent side={sidebarOpen ? "right" : "right"} className="bg-white text-black border border-gray-200">
+                    <TooltipContent side="right" className="bg-white text-black border border-gray-200">
                       <p>{item.description}</p>
                     </TooltipContent>
                   </Tooltip>
@@ -113,13 +140,19 @@ export function Sidebar() {
                           : "text-black hover:bg-gray-100 hover:text-primary border-l-4 border-transparent",
                         !sidebarOpen && "justify-center px-2"
                       )}
+                      onClick={() => {
+                        // Close sidebar on mobile when a link is clicked
+                        if (window.innerWidth < 768) {
+                          closeSidebar();
+                        }
+                      }}
                       aria-current={pathname === "/users" ? "page" : undefined}
                     >
                       <Users className={cn("h-5 w-5", pathname === "/users" ? "text-primary" : "text-black", sidebarOpen && "mr-3")} />
                       {sidebarOpen && <span>Usuarios</span>}
                     </Link>
                   </TooltipTrigger>
-                  <TooltipContent side={sidebarOpen ? "right" : "right"} className="bg-white text-black border border-gray-200">
+                  <TooltipContent side="right" className="bg-white text-black border border-gray-200">
                     <p>Administrar usuarios del sistema</p>
                   </TooltipContent>
                 </Tooltip>
@@ -144,13 +177,19 @@ export function Sidebar() {
                               : "text-black hover:bg-gray-100 hover:text-primary border-l-4 border-transparent",
                             !sidebarOpen && "justify-center px-2"
                           )}
+                          onClick={() => {
+                            // Close sidebar on mobile when a link is clicked
+                            if (window.innerWidth < 768) {
+                              closeSidebar();
+                            }
+                          }}
                           aria-current={isActive ? "page" : undefined}
                         >
                           <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-black", sidebarOpen && "mr-3")} />
                           {sidebarOpen && <span>{item.name}</span>}
                         </Link>
                       </TooltipTrigger>
-                      <TooltipContent side={sidebarOpen ? "right" : "right"} className="bg-white text-black border border-gray-200">
+                      <TooltipContent side="right" className="bg-white text-black border border-gray-200">
                         <p>{item.description}</p>
                       </TooltipContent>
                     </Tooltip>

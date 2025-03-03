@@ -15,27 +15,35 @@ export async function GET(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await Promise.resolve(params);
 
-    const productionLine = await prisma.productionLine.findUnique({
+    const lineaProduccion = await prisma.lineaProduccion.findUnique({
       where: {
         id,
       },
       include: {
-        systems: true,
+        sistemas: {
+          include: {
+            subsistemas: {
+              include: {
+                subsubsistemas: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    if (!productionLine) {
+    if (!lineaProduccion) {
       return NextResponse.json(
         { error: "Línea de producción no encontrada" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(productionLine);
+    return NextResponse.json(lineaProduccion);
   } catch (error) {
-    console.error("Error fetching production line:", error);
+    console.error("Error obteniendo línea de producción:", error);
     return NextResponse.json(
       { error: "Error al obtener la línea de producción" },
       { status: 500 }
@@ -57,61 +65,56 @@ export async function PUT(
 
     const { id } = params;
     const body = await request.json();
-    const { name } = body;
 
-    if (!name || typeof name !== "string" || name.trim() === "") {
+    // Validación básica de datos
+    if (!body.nombre) {
       return NextResponse.json(
-        { error: "El nombre de la línea de producción es requerido" },
+        { error: "El nombre es requerido" },
         { status: 400 }
       );
     }
 
-    // Check if the production line exists
-    const productionLine = await prisma.productionLine.findUnique({
+    // Verificar si la línea de producción existe
+    const existingLine = await prisma.lineaProduccion.findUnique({
       where: {
         id,
       },
     });
 
-    if (!productionLine) {
+    if (!existingLine) {
       return NextResponse.json(
         { error: "Línea de producción no encontrada" },
         { status: 404 }
       );
     }
 
-    // Check if another production line with this name already exists
-    const existingProductionLine = await prisma.productionLine.findFirst({
-      where: {
-        name: {
-          equals: name,
-          mode: 'insensitive',
-        },
-        id: {
-          not: id,
-        },
-      },
-    });
-
-    if (existingProductionLine) {
-      return NextResponse.json(
-        { error: "Ya existe otra línea de producción con este nombre" },
-        { status: 400 }
-      );
-    }
-
-    const updatedProductionLine = await prisma.productionLine.update({
+    // Actualizar la línea de producción
+    const updatedLine = await prisma.lineaProduccion.update({
       where: {
         id,
       },
       data: {
-        name,
+        nombre: body.nombre,
+        descripcion: body.descripcion,
+        ubicacion: body.ubicacion,
+        estado: body.estado,
+        fechaInstalacion: body.fechaInstalacion
+          ? new Date(body.fechaInstalacion)
+          : undefined,
+        ultimoMantenimiento: body.ultimoMantenimiento
+          ? new Date(body.ultimoMantenimiento)
+          : undefined,
+        proximoMantenimiento: body.proximoMantenimiento
+          ? new Date(body.proximoMantenimiento)
+          : undefined,
+        capacidadProduccion: body.capacidadProduccion,
+        horasOperacion: body.horasOperacion,
       },
     });
 
-    return NextResponse.json(updatedProductionLine);
+    return NextResponse.json(updatedLine);
   } catch (error) {
-    console.error("Error updating production line:", error);
+    console.error("Error actualizando línea de producción:", error);
     return NextResponse.json(
       { error: "Error al actualizar la línea de producción" },
       { status: 500 }
@@ -133,41 +136,33 @@ export async function DELETE(
 
     const { id } = params;
 
-    // Check if the production line exists
-    const productionLine = await prisma.productionLine.findUnique({
+    // Verificar si la línea de producción existe
+    const existingLine = await prisma.lineaProduccion.findUnique({
       where: {
         id,
       },
-      include: {
-        systems: true,
-      },
     });
 
-    if (!productionLine) {
+    if (!existingLine) {
       return NextResponse.json(
         { error: "Línea de producción no encontrada" },
         { status: 404 }
       );
     }
 
-    // Check if there are systems related to this production line
-    if (productionLine.systems.length > 0) {
-      return NextResponse.json(
-        { error: "No se puede eliminar una línea de producción que tiene sistemas asociados" },
-        { status: 400 }
-      );
-    }
-
-    // Delete the production line
-    await prisma.productionLine.delete({
+    // Eliminar la línea de producción
+    await prisma.lineaProduccion.delete({
       where: {
         id,
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { message: "Línea de producción eliminada correctamente" },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("Error deleting production line:", error);
+    console.error("Error eliminando línea de producción:", error);
     return NextResponse.json(
       { error: "Error al eliminar la línea de producción" },
       { status: 500 }

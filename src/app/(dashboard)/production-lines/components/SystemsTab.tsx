@@ -77,8 +77,46 @@ export function SystemsTab() {
   };
 
   useEffect(() => {
-    fetchSystems();
-    fetchProductionLines();
+    // Listen for the custom event from HierarchicalView
+    const handleEditSystem = (event: CustomEvent) => {
+      const storedData = localStorage.getItem("editSystem");
+      if (storedData) {
+        const system = JSON.parse(storedData);
+        setIsEditMode(true);
+        setCurrentSystem(system);
+        setNewSystemName(system.name);
+        setSelectedProductionLineId(system.productionLineId);
+        setIsDialogOpen(true);
+        localStorage.removeItem("editSystem");
+      }
+    };
+
+    // Add event listener
+    document.addEventListener("editSystem", handleEditSystem as EventListener);
+
+    // Check localStorage on initial load for any pre-selection
+    const checkLocalStorage = () => {
+      const preSelectedProductionLineId = localStorage.getItem("selectedProductionLineId");
+      if (preSelectedProductionLineId) {
+        setSelectedProductionLineId(preSelectedProductionLineId);
+        // Only set it if we're opening the dialog
+        localStorage.removeItem("selectedProductionLineId");
+      }
+      localStorage.removeItem("editSystem");
+    };
+    
+    const fetchData = async () => {
+      await fetchProductionLines();
+      await fetchSystems();
+      checkLocalStorage();
+    };
+    
+    fetchData();
+
+    // Clean up
+    return () => {
+      document.removeEventListener("editSystem", handleEditSystem as EventListener);
+    };
   }, []);
 
   const handleCreateSystem = async () => {
@@ -181,22 +219,6 @@ export function SystemsTab() {
     }
   };
 
-  const openCreateDialog = () => {
-    setIsEditMode(false);
-    setNewSystemName("");
-    setSelectedProductionLineId("");
-    setCurrentSystem(null);
-    setIsDialogOpen(true);
-  };
-
-  const openEditDialog = (system: System) => {
-    setIsEditMode(true);
-    setCurrentSystem(system);
-    setNewSystemName(system.name);
-    setSelectedProductionLineId(system.productionLineId);
-    setIsDialogOpen(true);
-  };
-
   const getProductionLineName = (productionLineId: string) => {
     const productionLine = productionLines.find((pl) => pl.id === productionLineId);
     return productionLine ? productionLine.name : "N/A";
@@ -204,10 +226,19 @@ export function SystemsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-black">Sistemas</h2>
-        <Button onClick={openCreateDialog} className="flex items-center gap-1">
-          <PlusCircle className="h-4 w-4" /> Agregar Sistema
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Sistemas</h3>
+        <Button 
+          id="add-system-button"
+          onClick={() => {
+            setIsEditMode(false);
+            setCurrentSystem(null);
+            setNewSystemName("");
+            setSelectedProductionLineId("");
+            setIsDialogOpen(true);
+          }}
+        >
+          <PlusCircle className="h-4 w-4 mr-2" /> Añadir
         </Button>
       </div>
 
@@ -220,7 +251,17 @@ export function SystemsTab() {
           <CardContent className="py-10">
             <div className="text-center text-black">
               <p>No hay sistemas registrados.</p>
-              <Button onClick={openCreateDialog} variant="link" className="mt-2">
+              <Button 
+                onClick={() => {
+                  setIsEditMode(false);
+                  setCurrentSystem(null);
+                  setNewSystemName("");
+                  setSelectedProductionLineId("");
+                  setIsDialogOpen(true);
+                }}
+                variant="link"
+                className="mt-2"
+              >
                 Crear un sistema
               </Button>
             </div>
@@ -242,7 +283,13 @@ export function SystemsTab() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => openEditDialog(system)}
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setCurrentSystem(system);
+                      setNewSystemName(system.name);
+                      setSelectedProductionLineId(system.productionLineId);
+                      setIsDialogOpen(true);
+                    }}
                     className="h-8 px-2"
                   >
                     <Pencil className="h-4 w-4" />

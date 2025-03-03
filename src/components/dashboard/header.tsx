@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -15,11 +14,11 @@ import {
 import { 
   Bell, 
   Menu, 
-  X, 
   User,
   Settings,
   LogOut,
-  PanelLeft
+  PanelLeft,
+  X
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,12 +26,7 @@ import { useSidebar } from "@/lib/context/SidebarContext";
 
 export function Header() {
   const { data: session } = useSession();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { sidebarOpen, toggleSidebar } = useSidebar();
-
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
+  const { sidebarOpen, toggleSidebar, isMobile } = useSidebar();
 
   // Get the first letter of the user's name for the avatar fallback
   const getInitials = () => {
@@ -45,30 +39,30 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 justify-between">
           <div className="flex items-center">
-            {/* Mobile menu button */}
+            {/* Mobile menu button - toggles the sidebar */}
             <Button
               variant="ghost"
               size="icon"
               className="md:hidden mr-2 text-black hover:bg-gray-100 focus:ring-2 focus:ring-primary"
-              onClick={toggleMobileMenu}
-              aria-label={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+              onClick={toggleSidebar}
+              aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
             >
-              {isMobileMenuOpen ? (
+              {sidebarOpen ? (
                 <X className="h-6 w-6 text-black" />
               ) : (
                 <Menu className="h-6 w-6 text-black" />
               )}
             </Button>
 
-            {/* Sidebar toggle button - visible on all screens */}
+            {/* Sidebar toggle button - visible only on desktop */}
             <Button
               variant="ghost"
               size="icon"
-              className="mr-2 text-black hover:bg-gray-100 focus:ring-2 focus:ring-primary"
+              className="hidden md:flex mr-2 text-black hover:bg-gray-100 focus:ring-2 focus:ring-primary"
               onClick={toggleSidebar}
               aria-label={sidebarOpen ? "Cerrar barra lateral" : "Abrir barra lateral"}
             >
@@ -81,7 +75,7 @@ export function Header() {
             </div>
           </div>
 
-          <div className={`flex-1 flex items-center justify-end ${sidebarOpen ? 'md:ml-64' : ''} transition-all duration-300`}>
+          <div className={`flex-1 flex items-center justify-end transition-all duration-300`}>
             <div className="mr-4 hidden md:block">
               <div className="bg-primary/10 px-4 py-1.5 rounded-full text-black text-sm font-medium">
                 {new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -167,59 +161,6 @@ export function Header() {
           </div>
         </div>
       </div>
-
-      {/* Mobile menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden bg-white text-black animate-in slide-in-from-top border-t-4 border-t-primary shadow-md">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <a
-              href="/dashboard"
-              className="block px-3 py-2 rounded-md text-base font-medium bg-primary/20 text-black border-l-4 border-primary hover:bg-primary/30 transition-colors"
-              aria-label="Ir al Dashboard"
-            >
-              Dashboard
-            </a>
-            <a
-              href="/production-orders"
-              className="block px-3 py-2 rounded-md text-base font-medium hover:bg-primary/20 transition-colors border-l-4 border-transparent hover:border-primary/50 text-black"
-              aria-label="Ir a Órdenes de Producción"
-            >
-              Órdenes de Producción
-            </a>
-            <a
-              href="/production-lines"
-              className="block px-3 py-2 rounded-md text-base font-medium hover:bg-primary/20 transition-colors border-l-4 border-transparent hover:border-primary/50 text-black"
-              aria-label="Ir a Líneas de Producción"
-            >
-              Líneas de Producción
-            </a>
-            <a
-              href="/analytics"
-              className="block px-3 py-2 rounded-md text-base font-medium hover:bg-primary/20 transition-colors border-l-4 border-transparent hover:border-primary/50 text-black"
-              aria-label="Ir a Analítica"
-            >
-              Analítica
-            </a>
-            {(session?.user?.role === "MASTER_ADMIN" ||
-              session?.user?.role === "MANAGER") && (
-              <a
-                href="/users"
-                className="block px-3 py-2 rounded-md text-base font-medium hover:bg-primary/20 transition-colors border-l-4 border-transparent hover:border-primary/50 text-black"
-                aria-label="Ir a Usuarios"
-              >
-                Usuarios
-              </a>
-            )}
-            <a
-              href="/settings"
-              className="block px-3 py-2 rounded-md text-base font-medium hover:bg-primary/20 transition-colors border-l-4 border-transparent hover:border-primary/50 text-black"
-              aria-label="Ir a Configuración"
-            >
-              Configuración
-            </a>
-          </div>
-        </div>
-      )}
     </header>
   );
 } 

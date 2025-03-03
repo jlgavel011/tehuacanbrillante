@@ -12,21 +12,21 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const productionLines = await prisma.lineaProduccion.findMany({
+    const lineasProduccion = await prisma.lineaProduccion.findMany({
       orderBy: {
         nombre: 'asc',
       },
     });
 
     // Map the Spanish field names to English names expected by the frontend
-    const mappedProductionLines = productionLines.map((line: { id: string; nombre: string; createdAt?: Date; updatedAt?: Date }) => ({
-      id: line.id,
-      name: line.nombre,
-      createdAt: line.createdAt ? line.createdAt.toISOString() : new Date().toISOString(),
-      updatedAt: line.updatedAt ? line.updatedAt.toISOString() : new Date().toISOString()
+    const productionLines = lineasProduccion.map((linea: { id: string; nombre: string; createdAt?: Date; updatedAt?: Date }) => ({
+      id: linea.id,
+      name: linea.nombre,
+      createdAt: linea.createdAt ? linea.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: linea.updatedAt ? linea.updatedAt.toISOString() : new Date().toISOString()
     }));
 
-    return NextResponse.json(mappedProductionLines);
+    return NextResponse.json(productionLines);
   } catch (error) {
     console.error("Error fetching production lines:", error);
     return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     }
 
     // Check if a production line with this name already exists
-    const existingProductionLine = await prisma.lineaProduccion.findFirst({
+    const existingLineaProduccion = await prisma.lineaProduccion.findFirst({
       where: {
         nombre: {
           equals: name,
@@ -65,28 +65,28 @@ export async function POST(request: Request) {
       },
     });
 
-    if (existingProductionLine) {
+    if (existingLineaProduccion) {
       return NextResponse.json(
         { error: "Ya existe una línea de producción con este nombre" },
         { status: 400 }
       );
     }
 
-    const productionLine = await prisma.lineaProduccion.create({
+    const nuevaLineaProduccion = await prisma.lineaProduccion.create({
       data: {
         nombre: name,
       },
     });
 
-    // Map the Spanish field names to English names expected by the frontend
-    const mappedProductionLine = {
-      id: productionLine.id,
-      name: productionLine.nombre,
-      createdAt: productionLine.createdAt || new Date().toISOString(),
-      updatedAt: productionLine.updatedAt || new Date().toISOString()
+    // Map the response to English field names
+    const newProductionLine = {
+      id: nuevaLineaProduccion.id,
+      name: nuevaLineaProduccion.nombre,
+      createdAt: nuevaLineaProduccion.createdAt ? nuevaLineaProduccion.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: nuevaLineaProduccion.updatedAt ? nuevaLineaProduccion.updatedAt.toISOString() : new Date().toISOString()
     };
 
-    return NextResponse.json(mappedProductionLine, { status: 201 });
+    return NextResponse.json(newProductionLine);
   } catch (error) {
     console.error("Error creating production line:", error);
     return NextResponse.json(

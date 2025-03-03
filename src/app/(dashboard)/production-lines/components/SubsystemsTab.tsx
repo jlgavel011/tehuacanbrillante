@@ -78,8 +78,46 @@ export function SubsystemsTab() {
   };
 
   useEffect(() => {
-    fetchSubsystems();
-    fetchSystems();
+    // Listen for the custom event from HierarchicalView
+    const handleEditSubsystem = (event: CustomEvent) => {
+      const storedData = localStorage.getItem("editSubsystem");
+      if (storedData) {
+        const subsystem = JSON.parse(storedData);
+        setIsEditMode(true);
+        setCurrentSubsystem(subsystem);
+        setNewSubsystemName(subsystem.name);
+        setSelectedSystemId(subsystem.systemId);
+        setIsDialogOpen(true);
+        localStorage.removeItem("editSubsystem");
+      }
+    };
+
+    // Add event listener
+    document.addEventListener("editSubsystem", handleEditSubsystem as EventListener);
+
+    // Check localStorage on initial load for any pre-selection
+    const checkLocalStorage = () => {
+      const preSelectedSystemId = localStorage.getItem("selectedSystemId");
+      if (preSelectedSystemId) {
+        setSelectedSystemId(preSelectedSystemId);
+        // Only set it if we're opening the dialog
+        localStorage.removeItem("selectedSystemId");
+      }
+      localStorage.removeItem("editSubsystem");
+    };
+    
+    const fetchData = async () => {
+      await fetchSystems();
+      await fetchSubsystems();
+      checkLocalStorage();
+    };
+    
+    fetchData();
+
+    // Clean up
+    return () => {
+      document.removeEventListener("editSubsystem", handleEditSubsystem as EventListener);
+    };
   }, []);
 
   const handleCreateSubsystem = async () => {
@@ -182,22 +220,6 @@ export function SubsystemsTab() {
     }
   };
 
-  const openCreateDialog = () => {
-    setIsEditMode(false);
-    setNewSubsystemName("");
-    setSelectedSystemId("");
-    setCurrentSubsystem(null);
-    setIsDialogOpen(true);
-  };
-
-  const openEditDialog = (subsystem: Subsystem) => {
-    setIsEditMode(true);
-    setCurrentSubsystem(subsystem);
-    setNewSubsystemName(subsystem.name);
-    setSelectedSystemId(subsystem.systemId);
-    setIsDialogOpen(true);
-  };
-
   const getSystemName = (systemId: string) => {
     const system = systems.find((s) => s.id === systemId);
     return system ? system.name : "N/A";
@@ -205,10 +227,19 @@ export function SubsystemsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-black">Subsistemas</h2>
-        <Button onClick={openCreateDialog} className="flex items-center gap-1">
-          <PlusCircle className="h-4 w-4" /> Agregar Subsistema
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Subsistemas</h3>
+        <Button 
+          id="add-subsystem-button"
+          onClick={() => {
+            setIsEditMode(false);
+            setCurrentSubsystem(null);
+            setNewSubsystemName("");
+            setSelectedSystemId("");
+            setIsDialogOpen(true);
+          }}
+        >
+          <PlusCircle className="h-4 w-4 mr-2" /> Añadir
         </Button>
       </div>
 
@@ -221,7 +252,17 @@ export function SubsystemsTab() {
           <CardContent className="py-10">
             <div className="text-center text-black">
               <p>No hay subsistemas registrados.</p>
-              <Button onClick={openCreateDialog} variant="link" className="mt-2">
+              <Button 
+                onClick={() => {
+                  setIsEditMode(false);
+                  setCurrentSubsystem(null);
+                  setNewSubsystemName("");
+                  setSelectedSystemId("");
+                  setIsDialogOpen(true);
+                }}
+                variant="link"
+                className="mt-2"
+              >
                 Crear un subsistema
               </Button>
             </div>
@@ -243,7 +284,13 @@ export function SubsystemsTab() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => openEditDialog(subsystem)}
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setCurrentSubsystem(subsystem);
+                      setNewSubsystemName(subsystem.name);
+                      setSelectedSystemId(subsystem.systemId);
+                      setIsDialogOpen(true);
+                    }}
                     className="h-8 px-2"
                   >
                     <Pencil className="h-4 w-4" />

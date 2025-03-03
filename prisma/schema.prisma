@@ -80,6 +80,7 @@ model Subsubsistema {
 model Caja {
   id              String      @id @default(auto()) @map("_id") @db.ObjectId
   numeroUnidades  Int
+  nombre          String?
   productos       Producto[]
 
   @@map("cajas")
@@ -120,6 +121,7 @@ model Sabor {
 model Tamaño {
   id             String       @id @default(auto()) @map("_id") @db.ObjectId
   litros         Float
+  nombre         String?
   productos      Producto[]
 
   @@map("tamaños")
@@ -201,6 +203,7 @@ model ProductoEnLinea {
   producto          Producto        @relation(fields: [productoId], references: [id])
   lineaProduccionId String          @db.ObjectId
   lineaProduccion   LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
+  velocidadProduccion Float?        @map("velocidadProduccion")
 
   @@map("productos_en_lineas")
 }

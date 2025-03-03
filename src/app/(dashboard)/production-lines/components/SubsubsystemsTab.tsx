@@ -78,8 +78,46 @@ export function SubsubsystemsTab() {
   };
 
   useEffect(() => {
-    fetchSubsubsystems();
-    fetchSubsystems();
+    // Listen for the custom event from HierarchicalView
+    const handleEditSubsubsystem = (event: CustomEvent) => {
+      const storedData = localStorage.getItem("editSubsubsystem");
+      if (storedData) {
+        const subsubsystem = JSON.parse(storedData);
+        setIsEditMode(true);
+        setCurrentSubsubsystem(subsubsystem);
+        setNewSubsubsystemName(subsubsystem.name);
+        setSelectedSubsystemId(subsubsystem.subsystemId);
+        setIsDialogOpen(true);
+        localStorage.removeItem("editSubsubsystem");
+      }
+    };
+
+    // Add event listener
+    document.addEventListener("editSubsubsystem", handleEditSubsubsystem as EventListener);
+
+    // Check localStorage on initial load for any pre-selection
+    const checkLocalStorage = () => {
+      const preSelectedSubsystemId = localStorage.getItem("selectedSubsystemId");
+      if (preSelectedSubsystemId) {
+        setSelectedSubsystemId(preSelectedSubsystemId);
+        // Only set it if we're opening the dialog
+        localStorage.removeItem("selectedSubsystemId");
+      }
+      localStorage.removeItem("editSubsubsystem");
+    };
+    
+    const fetchData = async () => {
+      await fetchSubsystems();
+      await fetchSubsubsystems();
+      checkLocalStorage();
+    };
+    
+    fetchData();
+
+    // Clean up
+    return () => {
+      document.removeEventListener("editSubsubsystem", handleEditSubsubsystem as EventListener);
+    };
   }, []);
 
   const handleCreateSubsubsystem = async () => {
@@ -182,22 +220,6 @@ export function SubsubsystemsTab() {
     }
   };
 
-  const openCreateDialog = () => {
-    setIsEditMode(false);
-    setNewSubsubsystemName("");
-    setSelectedSubsystemId("");
-    setCurrentSubsubsystem(null);
-    setIsDialogOpen(true);
-  };
-
-  const openEditDialog = (subsubsystem: Subsubsystem) => {
-    setIsEditMode(true);
-    setCurrentSubsubsystem(subsubsystem);
-    setNewSubsubsystemName(subsubsystem.name);
-    setSelectedSubsystemId(subsubsystem.subsystemId);
-    setIsDialogOpen(true);
-  };
-
   const getSubsystemName = (subsystemId: string) => {
     const subsystem = subsystems.find((s) => s.id === subsystemId);
     return subsystem ? subsystem.name : "N/A";
@@ -205,10 +227,19 @@ export function SubsubsystemsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-black">Sub-subsistemas</h2>
-        <Button onClick={openCreateDialog} className="flex items-center gap-1">
-          <PlusCircle className="h-4 w-4" /> Agregar Sub-subsistema
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Sub-subsistemas</h3>
+        <Button 
+          id="add-subsubsystem-button"
+          onClick={() => {
+            setIsEditMode(false);
+            setCurrentSubsubsystem(null);
+            setNewSubsubsystemName("");
+            setSelectedSubsystemId("");
+            setIsDialogOpen(true);
+          }}
+        >
+          <PlusCircle className="h-4 w-4 mr-2" /> Añadir
         </Button>
       </div>
 
@@ -221,7 +252,17 @@ export function SubsubsystemsTab() {
           <CardContent className="py-10">
             <div className="text-center text-black">
               <p>No hay sub-subsistemas registrados.</p>
-              <Button onClick={openCreateDialog} variant="link" className="mt-2">
+              <Button 
+                onClick={() => {
+                  setIsEditMode(false);
+                  setCurrentSubsubsystem(null);
+                  setNewSubsubsystemName("");
+                  setSelectedSubsystemId("");
+                  setIsDialogOpen(true);
+                }}
+                variant="link"
+                className="mt-2"
+              >
                 Crear un sub-subsistema
               </Button>
             </div>
@@ -243,7 +284,13 @@ export function SubsubsystemsTab() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => openEditDialog(subsubsystem)}
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setCurrentSubsubsystem(subsubsystem);
+                      setNewSubsubsystemName(subsubsystem.name);
+                      setSelectedSubsystemId(subsubsystem.subsystemId);
+                      setIsDialogOpen(true);
+                    }}
                     className="h-8 px-2"
                   >
                     <Pencil className="h-4 w-4" />
