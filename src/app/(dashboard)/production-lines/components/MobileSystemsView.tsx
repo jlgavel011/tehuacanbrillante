@@ -134,7 +134,7 @@ export function MobileSystemsView({
             const isExpanded = expandedSystems[system.id] || false;
 
             return (
-              <Card key={system.id} className="border border-gray-200 shadow-sm">
+              <Card key={system.id} className="border border-gray-200 shadow-sm bg-white">
                 <CardHeader className="p-3 pb-0">
                   <div className="flex items-center justify-between">
                     <div 

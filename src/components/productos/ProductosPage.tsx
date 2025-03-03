@@ -173,7 +173,7 @@ export default function ProductosPage() {
         </Dialog>
       </div>
 
-      <Card>
+      <Card className="bg-white border shadow-sm">
         <CardHeader className="px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <CardTitle className="text-lg sm:text-xl text-black">Lista de Productos</CardTitle>
@@ -247,57 +247,59 @@ export default function ProductosPage() {
             <>
               {/* Desktop Table View */}
               <div className="hidden md:block">
-                <ScrollArea className="w-full rounded-md border-0 shadow-sm h-[calc(100vh-300px)]">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background z-10">
-                      <TableRow>
-                        <TableHead className="w-[25%]">Nombre</TableHead>
-                        <TableHead className="w-[15%]">Caja</TableHead>
-                        <TableHead className="w-[15%]">Modelo</TableHead>
-                        <TableHead className="w-[15%]">Tamaño</TableHead>
-                        <TableHead className="w-[15%]">Sabor</TableHead>
-                        <TableHead className="w-[15%] text-right">Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredProductos.map((producto) => (
-                        <TableRow key={producto.id}>
-                          <TableCell className="font-medium">{producto.nombre}</TableCell>
-                          <TableCell>{producto.caja.nombre || `${producto.caja.numeroUnidades} unidades`}</TableCell>
-                          <TableCell>{producto.modelo.nombre}</TableCell>
-                          <TableCell>{producto.tamaño.nombre || `${producto.tamaño.litros} L`}</TableCell>
-                          <TableCell>{producto.sabor.nombre}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end space-x-2">
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                onClick={() => handleEditClick(producto)}
-                                className="h-9 w-9 text-primary hover:text-primary-dark hover:bg-primary/10"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                onClick={() => handleDeleteClick(producto)}
-                                className="h-9 w-9 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                <div className="rounded-md border-0 shadow-sm overflow-hidden bg-white">
+                  <ScrollArea className="w-full h-[calc(100vh-300px)]">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-muted/50 z-10">
+                        <TableRow>
+                          <TableHead className="w-[25%]">Nombre</TableHead>
+                          <TableHead className="w-[15%]">Caja</TableHead>
+                          <TableHead className="w-[15%]">Modelo</TableHead>
+                          <TableHead className="w-[15%]">Tamaño</TableHead>
+                          <TableHead className="w-[15%]">Sabor</TableHead>
+                          <TableHead className="w-[15%] text-right">Acciones</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredProductos.map((producto) => (
+                          <TableRow key={producto.id} className="hover:bg-muted/50">
+                            <TableCell className="font-medium">{producto.nombre}</TableCell>
+                            <TableCell>{producto.caja.nombre || `${producto.caja.numeroUnidades} unidades`}</TableCell>
+                            <TableCell>{producto.modelo.nombre}</TableCell>
+                            <TableCell>{producto.tamaño.nombre || `${producto.tamaño.litros} L`}</TableCell>
+                            <TableCell>{producto.sabor.nombre}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end space-x-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleEditClick(producto)}
+                                  className="h-9 w-9 text-primary hover:text-primary-dark hover:bg-primary/10"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleDeleteClick(producto)}
+                                  className="h-9 w-9 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </div>
               </div>
 
               {/* Mobile Card View */}
               <div className="grid grid-cols-1 gap-4 md:hidden">
                 {filteredProductos.map((producto) => (
-                  <Card key={producto.id} className="overflow-hidden border-0 shadow-md border-l-4 border-l-primary">
+                  <Card key={producto.id} className="overflow-hidden border shadow-sm border-l-4 border-l-primary bg-white">
                     <CardHeader className="p-4 pb-2 bg-muted/30">
                       <div className="flex justify-between items-start">
                         <CardTitle className="text-base font-medium">{producto.nombre}</CardTitle>

@@ -21,9 +21,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
+  const router = useRouter();
+
+  // Redirect production chiefs to their portal
+  useEffect(() => {
+    if (session?.user?.role === "PRODUCTION_CHIEF") {
+      router.push("/production-chief");
+    }
+  }, [session, router]);
 
   // Datos de ejemplo para las órdenes de producción recientes
   const recentOrders = [

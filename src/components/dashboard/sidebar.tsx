@@ -14,10 +14,14 @@ import {
   LogOut,
   Users,
   Package,
+  ChevronLeft,
+  ChevronRight,
+  Hammer,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebar } from "@/lib/context/SidebarContext";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, description: "Visión general de la plataforma" },
@@ -25,16 +29,17 @@ const navigation = [
   { name: "Líneas de Producción", href: "/production-lines", icon: Factory, description: "Monitorear líneas de producción" },
   { name: "Productos", href: "/productos", icon: Package, description: "Gestionar productos" },
   { name: "Analítica", href: "/analytics", icon: BarChart2, description: "Ver analítica y reportes" },
+  { name: "Portal Jefe de Producción", href: "/production-chief", icon: Hammer, description: "Portal para gestionar la producción y registrar paros", roles: ["PRODUCTION_CHIEF"] },
 ];
 
 const secondaryNavigation = [
-  { name: "Configuración", href: "/settings", icon: Settings, description: "Configurar preferencias del sistema" },
+  { name: "Configuración", href: "/configuration", icon: Settings, description: "Configurar preferencias del sistema" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { sidebarOpen, closeSidebar } = useSidebar();
+  const { sidebarOpen, closeSidebar, toggleSidebar } = useSidebar();
   const [mounted, setMounted] = useState(false);
 
   // Handle hydration mismatch
@@ -60,6 +65,20 @@ export function Sidebar() {
     return null;
   }
 
+  // Filter navigation items based on user role
+  const filteredNavigation = navigation.filter(item => {
+    // If user is PRODUCTION_CHIEF, only show the Portal Jefe de Producción
+    if (session?.user?.role === "PRODUCTION_CHIEF") {
+      return item.roles?.includes("PRODUCTION_CHIEF");
+    }
+    
+    // For other roles, if no roles specified, show to everyone
+    if (!item.roles) return true;
+    
+    // If roles specified, check if user has one of those roles
+    return item.roles.includes(session?.user?.role as string);
+  });
+
   return (
     <>
       {/* Backdrop for mobile - shows when sidebar is open */}
@@ -83,17 +102,55 @@ export function Sidebar() {
             : "-translate-x-full md:translate-x-0 md:w-20"
         )}
       >
-        <div className="flex h-16 shrink-0 items-center justify-center px-4 sm:px-6">
-          <div className="flex items-center space-x-3">
-            <div className="h-8 w-2 bg-primary rounded-l-md"></div>
-            {sidebarOpen && <span className="font-bold text-xl text-black truncate">Tehuacán Brillante</span>}
+        {/* Toggle button positioned on the right edge of the sidebar */}
+        <div className="absolute -right-4 top-1/2 transform -translate-y-1/2 hidden md:block z-50">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 rounded-full bg-white border border-gray-200 shadow-md hover:bg-gray-100 focus:ring-2 focus:ring-primary transition-transform duration-200 hover:scale-110"
+                  onClick={toggleSidebar}
+                  aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+                >
+                  {sidebarOpen ? (
+                    <ChevronLeft className="h-4 w-4 text-black transition-transform duration-300" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-black transition-transform duration-300" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="bg-white text-black border border-gray-200">
+                <p>{sidebarOpen ? "Contraer menú" : "Expandir menú"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        
+        <div className="flex h-16 shrink-0 items-center px-4 sm:px-6">
+          <div className={`flex items-center ${!sidebarOpen ? "justify-center w-full" : ""}`}>
+            <div className={`${!sidebarOpen ? "flex justify-center items-center w-full pl-0.5" : "pl-1.5"}`}>
+              <Image 
+                src="/dimond.svg" 
+                alt="Tehuacán Brillante Logo" 
+                width={sidebarOpen ? 22 : 24} 
+                height={sidebarOpen ? 19 : 20} 
+                className="flex-shrink-0 transition-all duration-300 hover:opacity-80"
+              />
+            </div>
+            {sidebarOpen && (
+              <>
+                <span className="font-semibold text-base text-primary truncate ml-3">Tehuacán Brillante</span>
+              </>
+            )}
           </div>
         </div>
         
         <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
           <div className="flex-1 space-y-1 px-4">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href;
+            {filteredNavigation.map((item) => {
+              const isActive = pathname.startsWith(item.href);
               return (
                 <TooltipProvider key={item.name}>
                   <Tooltip>
@@ -161,42 +218,44 @@ export function Sidebar() {
           </div>
 
           <div className="mt-5 px-4 space-y-1">
-            <div className="pt-4 border-t border-gray-200">
-              {secondaryNavigation.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <TooltipProvider key={item.name}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                            isActive
-                              ? "bg-primary/10 text-primary border-l-4 border-primary"
-                              : "text-black hover:bg-gray-100 hover:text-primary border-l-4 border-transparent",
-                            !sidebarOpen && "justify-center px-2"
-                          )}
-                          onClick={() => {
-                            // Close sidebar on mobile when a link is clicked
-                            if (window.innerWidth < 768) {
-                              closeSidebar();
-                            }
-                          }}
-                          aria-current={isActive ? "page" : undefined}
-                        >
-                          <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-black", sidebarOpen && "mr-3")} />
-                          {sidebarOpen && <span>{item.name}</span>}
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="bg-white text-black border border-gray-200">
-                        <p>{item.description}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              })}
-            </div>
+            {session?.user?.role !== "PRODUCTION_CHIEF" && (
+              <div className="pt-4 border-t border-gray-200">
+                {secondaryNavigation.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <TooltipProvider key={item.name}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Link
+                            href={item.href}
+                            className={cn(
+                              "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                              isActive
+                                ? "bg-primary/10 text-primary border-l-4 border-primary"
+                                : "text-black hover:bg-gray-100 hover:text-primary border-l-4 border-transparent",
+                              !sidebarOpen && "justify-center px-2"
+                            )}
+                            onClick={() => {
+                              // Close sidebar on mobile when a link is clicked
+                              if (window.innerWidth < 768) {
+                                closeSidebar();
+                              }
+                            }}
+                            aria-current={isActive ? "page" : undefined}
+                          >
+                            <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-black", sidebarOpen && "mr-3")} />
+                            {sidebarOpen && <span>{item.name}</span>}
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="bg-white text-black border border-gray-200">
+                          <p>{item.description}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -209,41 +268,38 @@ export function Sidebar() {
                     {session?.user?.name?.[0] || "U"}
                   </div>
                 </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-black">{session?.user?.name || "Usuario"}</p>
-                  <p className="text-xs text-black truncate">{session?.user?.email}</p>
+                <div className="ml-3 min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-gray-900">{session?.user?.name || "Usuario"}</div>
+                  <div className="truncate text-xs text-gray-500">{session?.user?.email || ""}</div>
                 </div>
               </div>
-              
               <Button
-                variant="outline"
-                className="mt-4 w-full flex items-center justify-center bg-white border-gray-300 text-black hover:bg-gray-100 focus:ring-2 focus:ring-primary"
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                variant="ghost"
+                className="mt-3 w-full justify-start text-sm text-gray-600 hover:text-gray-900"
+                onClick={() => signOut()}
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Cerrar sesión
               </Button>
             </>
           ) : (
-            <div className="flex justify-center">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="bg-white border-gray-300 text-black hover:bg-gray-100"
-                      onClick={() => signOut({ callbackUrl: "/login" })}
-                    >
-                      <LogOut className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="bg-white text-black border border-gray-200">
-                    <p>Cerrar sesión</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-full h-10 flex justify-center"
+                    onClick={() => signOut()}
+                  >
+                    <LogOut className="h-5 w-5 text-gray-600 hover:text-gray-900" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-white text-black border border-gray-200">
+                  <p>Cerrar sesión</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       </div>

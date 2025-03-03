@@ -13,12 +13,14 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
       role: "MASTER_ADMIN" | "MANAGER" | "PRODUCTION_CHIEF";
+      isMaster: boolean;
     };
   }
 
   interface User {
     id: string;
     role: "MASTER_ADMIN" | "MANAGER" | "PRODUCTION_CHIEF";
+    isMaster: boolean;
   }
 }
 
@@ -26,6 +28,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role: "MASTER_ADMIN" | "MANAGER" | "PRODUCTION_CHIEF";
+    isMaster: boolean;
   }
 }
 
@@ -41,6 +44,7 @@ export const authOptions: NextAuthOptions = {
           email: profile.email,
           image: profile.picture,
           role: "PRODUCTION_CHIEF", // Default role for Google sign-in
+          isMaster: false, // Default isMaster for Google sign-in
         };
       },
     }),
@@ -80,6 +84,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           image: user.image,
           role: user.role,
+          isMaster: user.isMaster,
         };
       },
     }),
@@ -101,6 +106,7 @@ export const authOptions: NextAuthOptions = {
               name: user.name as string,
               image: user.image as string,
               role: "PRODUCTION_CHIEF",
+              isMaster: false,
             },
           });
         }
@@ -111,6 +117,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = user.role;
         token.id = user.id;
+        token.isMaster = user.isMaster;
       }
 
       // If it's a first time sign in with Google
@@ -124,6 +131,7 @@ export const authOptions: NextAuthOptions = {
         if (dbUser) {
           token.role = dbUser.role;
           token.id = dbUser.id;
+          token.isMaster = dbUser.isMaster;
         }
       }
       
@@ -133,6 +141,7 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         session.user.role = token.role;
         session.user.id = token.id;
+        session.user.isMaster = token.isMaster;
       }
       return session;
     },

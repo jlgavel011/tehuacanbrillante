@@ -80,25 +80,49 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and authorized
-    if (!session || (session.user.role !== "MASTER_ADMIN" && session.user.role !== "MANAGER")) {
+    // Check if user is authenticated
+    if (!session) {
       return new NextResponse(
-        JSON.stringify({ error: "No autorizado" }),
+        JSON.stringify({ error: "No autorizado - Usuario no autenticado" }),
         { status: 401 }
+      );
+    }
+    
+    // Allow MASTER_ADMIN, MANAGER, and PRODUCTION_CHIEF roles to create orders
+    const allowedRoles = ["MASTER_ADMIN", "MANAGER", "PRODUCTION_CHIEF"];
+    if (!allowedRoles.includes(session.user.role)) {
+      return new NextResponse(
+        JSON.stringify({ error: "No autorizado - Rol sin permisos suficientes" }),
+        { status: 403 }
       );
     }
     
     const body = await req.json();
     
     // Validate required fields
-    if (!body.cajasPlanificadas || !body.lineaProduccionId || !body.productoId || !body.turno || !body.fechaProduccion) {
+    if (!body.cajasPlanificadas || !body.lineaProduccionId || !body.productoId || !body.turno || !body.fechaProduccion || !body.numeroOrden) {
       return new NextResponse(
         JSON.stringify({ error: "Faltan campos obligatorios" }),
         { status: 400 }
       );
     }
     
-    const numeroOrden = generateOrderNumber();
+    // Use the provided numeroOrden instead of generating one
+    const numeroOrden = body.numeroOrden;
+    
+    // Check if an order with this number already exists
+    const existingOrder = await prisma.produccion.findFirst({
+      where: {
+        numeroOrden: numeroOrden
+      }
+    });
+    
+    if (existingOrder) {
+      return new NextResponse(
+        JSON.stringify({ error: "Ya existe una orden con este número" }),
+        { status: 400 }
+      );
+    }
     
     const orden = await prisma.produccion.create({
       data: {

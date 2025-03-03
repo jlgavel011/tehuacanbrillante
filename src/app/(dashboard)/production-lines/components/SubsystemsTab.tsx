@@ -248,7 +248,7 @@ export function SubsystemsTab() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : subsystems.length === 0 ? (
-        <Card>
+        <Card className="bg-white border shadow-sm">
           <CardContent className="py-10">
             <div className="text-center text-black">
               <p>No hay subsistemas registrados.</p>
@@ -271,7 +271,7 @@ export function SubsystemsTab() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {subsystems.map((subsystem) => (
-            <Card key={subsystem.id} className="overflow-hidden">
+            <Card key={subsystem.id} className="overflow-hidden bg-white border shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold text-black">{subsystem.name}</CardTitle>
               </CardHeader>

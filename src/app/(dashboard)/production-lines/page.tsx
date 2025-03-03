@@ -168,7 +168,7 @@ export default function ProductionLinesPage() {
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <Card key={index} className="border-l-4 border-l-gray-300 hover:shadow-md transition-all">
+            <Card key={index} className="border-l-4 border-l-gray-300 hover:shadow-md transition-all bg-white">
               <CardHeader className="pb-1 px-3 sm:px-4">
                 <Skeleton className="h-6 w-2/3" />
               </CardHeader>
@@ -197,7 +197,7 @@ export default function ProductionLinesPage() {
             productionLines.map((productionLine) => (
               <Card 
                 key={productionLine.id} 
-                className="border-l-4 border-l-primary hover:shadow-lg transition-all group relative"
+                className="border-l-4 border-l-primary hover:shadow-lg transition-all group relative bg-white border shadow-sm"
               >
                 <CardHeader className="pb-1 px-3 sm:px-4">
                   <div className="absolute top-2 right-2 bg-primary/10 rounded-full p-2">

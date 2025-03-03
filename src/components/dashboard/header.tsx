@@ -17,7 +17,6 @@ import {
   User,
   Settings,
   LogOut,
-  PanelLeft,
   X
 } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -56,17 +55,6 @@ export function Header() {
               ) : (
                 <Menu className="h-6 w-6 text-black" />
               )}
-            </Button>
-
-            {/* Sidebar toggle button - visible only on desktop */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden md:flex mr-2 text-black hover:bg-gray-100 focus:ring-2 focus:ring-primary"
-              onClick={toggleSidebar}
-              aria-label={sidebarOpen ? "Cerrar barra lateral" : "Abrir barra lateral"}
-            >
-              <PanelLeft className={`h-6 w-6 transition-transform duration-300 ${!sidebarOpen ? 'rotate-180' : ''}`} />
             </Button>
             
             <div className="md:hidden flex items-center ml-2">

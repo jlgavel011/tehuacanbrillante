@@ -1,13 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // External packages in server components
+  // Configuration options
   experimental: {
-    // External packages in server components
-    serverExternalPackages: ['@prisma/client'],
-    
     // Disable strict mode for development
     strictNextHead: false,
   },
+  
+  // Add compiler options
+  compiler: {
+    // Enables the styled-components SWC transform
+    styledComponents: true
+  }
 }
 
 module.exports = nextConfig 
