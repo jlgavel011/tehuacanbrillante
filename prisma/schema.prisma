@@ -159,6 +159,8 @@ model Produccion {
   productoId        String          @db.ObjectId
   producto          Producto        @relation(fields: [productoId], references: [id])
   paros             Paro[]
+  lastUpdateTime    DateTime?       // Last time the production count was updated
+  estado            String?         @default("pendiente") // pendiente, en_progreso, completada
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 

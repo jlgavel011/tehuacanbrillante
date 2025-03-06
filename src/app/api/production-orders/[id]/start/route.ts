@@ -37,13 +37,20 @@ export async function POST(
       return new NextResponse("Order not found", { status: 404 });
     }
 
-    // Update the order to mark it as started (set cajasProducidas to 1 if it's 0)
+    // Determine the state of the order
+    const newCajasProducidas = order.cajasProducidas === 0 ? 1 : order.cajasProducidas;
+    const estado = "en_progreso";
+    const now = new Date();
+
+    // Update the order to mark it as started
     const updatedOrder = await prisma.produccion.update({
       where: {
         id: params.id,
       },
       data: {
-        cajasProducidas: order.cajasProducidas === 0 ? 1 : order.cajasProducidas,
+        cajasProducidas: newCajasProducidas,
+        estado,
+        lastUpdateTime: now
       },
       include: {
         lineaProduccion: true,
@@ -70,19 +77,12 @@ export async function POST(
       velocidadProduccion: productoEnLinea?.velocidadProduccion || null,
     };
 
-    // Determine the order status
-    let estado = "pendiente";
-    if (updatedOrder.cajasProducidas >= updatedOrder.cajasPlanificadas) {
-      estado = "completada";
-    } else if (updatedOrder.cajasProducidas > 0) {
-      estado = "en_progreso";
-    }
-
     // Return the updated order with the enhanced product and status
     return NextResponse.json({
       ...updatedOrder,
       producto,
       estado,
+      lastUpdateTime: now
     });
   } catch (error) {
     console.error("[ORDER_START_POST]", error);

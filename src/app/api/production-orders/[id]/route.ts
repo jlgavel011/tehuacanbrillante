@@ -80,21 +80,25 @@ export async function GET(
       velocidadProduccion: productoEnLinea?.velocidadProduccion || null,
     };
 
-    // Determine the order status
-    let estado = "pendiente";
-    if (order.cajasProducidas >= order.cajasPlanificadas) {
-      estado = "completada";
-    } else if (order.cajasProducidas > 0) {
-      estado = "en_progreso";
+    // Determine the order status - use the stored estado if available, or calculate it
+    let estado = order.estado || "pendiente";
+    if (!order.estado) {
+      if (order.cajasProducidas >= order.cajasPlanificadas) {
+        estado = "completada";
+      } else if (order.cajasProducidas > 0) {
+        estado = "en_progreso";
+      }
     }
 
     console.log("[ORDER_GET] Returning order with status:", estado);
+    console.log("[ORDER_GET] Last update time:", order.lastUpdateTime);
     
     // Return the order with the enhanced product and status
     return NextResponse.json({
       ...order,
       producto,
       estado,
+      lastUpdateTime: order.lastUpdateTime || null,
     });
   } catch (error) {
     console.error("[ORDER_GET] Error:", error);

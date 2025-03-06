@@ -304,8 +304,13 @@ export function ProductionStatus() {
       console.log("Order data:", orderData);
       setOrder(orderData);
       
-      // If the order is in progress, set the last update time
-      if (orderData.estado === "en_progreso") {
+      // Use lastUpdateTime from API if available
+      if (orderData.lastUpdateTime) {
+        console.log("Using lastUpdateTime from API:", orderData.lastUpdateTime);
+        setLastUpdateTime(new Date(orderData.lastUpdateTime));
+      } else if (orderData.estado === "en_progreso") {
+        // Fallback for older records without lastUpdateTime
+        console.log("No lastUpdateTime in API response, using current time");
         setLastUpdateTime(new Date());
       }
     } catch (err) {
@@ -389,14 +394,30 @@ export function ProductionStatus() {
         throw new Error("Error al iniciar la producción");
       }
       
-      // Initialize the countdown timer
-      const now = new Date();
-      setLastUpdateTime(now);
+      // Get the updated order with lastUpdateTime from API
+      const updatedOrder = await response.json();
       
-      // Set next update time to 1 hour from now
-      const nextUpdate = new Date(now);
-      nextUpdate.setHours(nextUpdate.getHours() + 1);
-      setNextUpdateTime(nextUpdate);
+      // Use lastUpdateTime from API response
+      if (updatedOrder.lastUpdateTime) {
+        const apiLastUpdateTime = new Date(updatedOrder.lastUpdateTime);
+        console.log("Using lastUpdateTime from API response:", apiLastUpdateTime);
+        setLastUpdateTime(apiLastUpdateTime);
+        
+        // Set next update time to 1 hour from the API lastUpdateTime
+        const nextUpdate = new Date(apiLastUpdateTime);
+        nextUpdate.setHours(nextUpdate.getHours() + 1);
+        setNextUpdateTime(nextUpdate);
+      } else {
+        // Fallback if API doesn't return lastUpdateTime (should not happen after our updates)
+        console.log("No lastUpdateTime in API response, using current time");
+        const now = new Date();
+        setLastUpdateTime(now);
+        
+        // Set next update time to 1 hour from now
+        const nextUpdate = new Date(now);
+        nextUpdate.setHours(nextUpdate.getHours() + 1);
+        setNextUpdateTime(nextUpdate);
+      }
       
       // Reset countdown warning
       setShowCountdownWarning(false);
@@ -484,19 +505,35 @@ export function ProductionStatus() {
         throw new Error("Error al actualizar la producción");
       }
       
-      // Update lastUpdateTime and reset countdown
-      const now = new Date();
-      setLastUpdateTime(now);
+      // Get the updated order with lastUpdateTime from API
+      const updatedOrder = await response.json();
       
-      // Set next update time to 1 hour from now
-      const nextUpdate = new Date(now);
-      nextUpdate.setHours(nextUpdate.getHours() + 1);
-      setNextUpdateTime(nextUpdate);
+      // Use lastUpdateTime from API response
+      if (updatedOrder.lastUpdateTime) {
+        const apiLastUpdateTime = new Date(updatedOrder.lastUpdateTime);
+        console.log("Using lastUpdateTime from API response:", apiLastUpdateTime);
+        setLastUpdateTime(apiLastUpdateTime);
+        
+        // Set next update time to 1 hour from the API lastUpdateTime
+        const nextUpdate = new Date(apiLastUpdateTime);
+        nextUpdate.setHours(nextUpdate.getHours() + 1);
+        setNextUpdateTime(nextUpdate);
+      } else {
+        // Fallback if API doesn't return lastUpdateTime (should not happen after our updates)
+        console.log("No lastUpdateTime in API response, using current time");
+        const now = new Date();
+        setLastUpdateTime(now);
+        
+        // Set next update time to 1 hour from now
+        const nextUpdate = new Date(now);
+        nextUpdate.setHours(nextUpdate.getHours() + 1);
+        setNextUpdateTime(nextUpdate);
+      }
       
       // Reset countdown warning
       setShowCountdownWarning(false);
       
-      // Refresh the order data
+      // Refresh the order data to get all updated fields
       await fetchOrder();
       setShowHourlyUpdate(false);
       toast.success("Producción actualizada correctamente");
@@ -527,14 +564,25 @@ export function ProductionStatus() {
     
     // Show the add paro dialog if there are stop minutes
     if (calculatedStopMinutes > 0) {
+      // Find the Mantenimiento stop type
+      const mantenimientoTipo = stopTypes.find(tipo => tipo.nombre === "Mantenimiento");
+      
+      if (!mantenimientoTipo) {
+        toast.error("Error: No se encontró el tipo de paro Mantenimiento");
+        return;
+      }
+      
+      // Set the current paro with the mantenimiento type ID already selected
       setCurrentParo({
         tiempoMinutos: 0,
-        tipoParoId: "",
-        sistemaId: "",
-        subsistemaId: "",
-        subsubsistemaId: "",
+        tipoParoId: mantenimientoTipo.id,
+        tipoParoNombre: mantenimientoTipo.nombre,
+        sistemaId: "placeholder",
+        subsistemaId: "placeholder",
+        subsubsistemaId: "placeholder",
         descripcion: "",
       });
+      
       setShowAddParoDialog(true);
     } else {
       // If no stop minutes, just update production
@@ -634,14 +682,31 @@ export function ProductionStatus() {
   const handleAddParo = () => {
     if (!currentParo) return;
     
-    if (!currentParo.tipoParoId) {
-      toast.error("Por favor seleccione un tipo de paro");
-      return;
-    }
-
+    // Skip the tipoParoId check since we now set it automatically based on the currentParoType
+    // The tipoParoId should already be correctly set based on the currentParoType
+    
     if (!currentParo.tiempoMinutos || currentParo.tiempoMinutos <= 0) {
       toast.error("Por favor ingrese un tiempo válido");
       return;
+    }
+
+    // Check if the sistema has been selected
+    if (!currentParo.sistemaId || currentParo.sistemaId === "placeholder") {
+      toast.error("Por favor seleccione un sistema");
+      return;
+    }
+    
+    // Check if subsistema and subsubsistema have been selected for Mantenimiento paros only
+    if (currentParoType === "Mantenimiento") {
+      if (!currentParo.subsistemaId || currentParo.subsistemaId === "placeholder") {
+        toast.error("Por favor seleccione un subsistema");
+        return;
+      }
+      
+      if (!currentParo.subsubsistemaId || currentParo.subsubsistemaId === "placeholder") {
+        toast.error("Por favor seleccione un subsubsistema");
+        return;
+      }
     }
 
     // Calculate the total time assigned so far, excluding the current paro if editing
@@ -800,15 +865,34 @@ export function ProductionStatus() {
         const calidadTipo = stopTypes.find(tipo => tipo.nombre === "Calidad");
         if (calidadTipo) {
           setCurrentParo({
-            tiempoMinutos: 0,
+            tiempoMinutos: Math.min(remainingTime, 15),
             tipoParoId: calidadTipo.id,
             tipoParoNombre: calidadTipo.nombre,
+            sistemaId: "placeholder",
+            subsistemaId: "placeholder",
+            subsubsistemaId: "placeholder",
             descripcion: ""
           });
           setShowAddParoDialog(true);
         } else {
-          // If no time remaining, show summary
-          setShowSummaryDialog(true);
+          // Move to next type if no Calidad type found
+          setCurrentParoType("Operación");
+          const operacionTipo = stopTypes.find(tipo => tipo.nombre === "Operación");
+          if (operacionTipo) {
+            setCurrentParo({
+              tiempoMinutos: Math.min(remainingTime, 15),
+              tipoParoId: operacionTipo.id,
+              tipoParoNombre: operacionTipo.nombre,
+              sistemaId: "placeholder",
+              subsistemaId: "placeholder",
+              subsubsistemaId: "placeholder",
+              descripcion: ""
+            });
+            setShowAddParoDialog(true);
+          } else {
+            // If no time remaining, show summary
+            setShowSummaryDialog(true);
+          }
         }
       } else {
         // If no time remaining, show summary
@@ -822,20 +906,26 @@ export function ProductionStatus() {
         const operacionTipo = stopTypes.find(tipo => tipo.nombre === "Operación");
         if (operacionTipo) {
           setCurrentParo({
-            tiempoMinutos: remainingTime, // Assign all remaining time to Operación
+            tiempoMinutos: Math.min(remainingTime, 15),
             tipoParoId: operacionTipo.id,
             tipoParoNombre: operacionTipo.nombre,
+            sistemaId: "placeholder",
+            subsistemaId: "placeholder",
+            subsubsistemaId: "placeholder",
             descripcion: ""
           });
           setShowAddParoDialog(true);
         } else {
-          // If no time remaining, show summary
+          // If no Operación type found, show summary
           setShowSummaryDialog(true);
         }
       } else {
-        // We've gone through all types, show summary
+        // If no time remaining, show summary
         setShowSummaryDialog(true);
       }
+    } else {
+      // If we're already on Operación, finish the process
+      finishParoAssignment();
     }
   };
 
@@ -1458,6 +1548,15 @@ export function ProductionStatus() {
                   (currentParoType === "Mantenimiento" && (!currentParo.subsistemaId || currentParo.subsistemaId === "placeholder")) ||
                   (currentParoType === "Mantenimiento" && (!currentParo.subsubsistemaId || currentParo.subsubsistemaId === "placeholder"))
                 }
+                className={`${
+                  currentParoType === "Mantenimiento" 
+                    ? "bg-blue-600 hover:bg-blue-700" 
+                    : currentParoType === "Calidad" 
+                      ? "bg-amber-600 hover:bg-amber-700" 
+                      : currentParoType === "Operación" 
+                        ? "bg-green-600 hover:bg-green-700" 
+                        : ""
+                }`}
               >
                 {editingParoIndex !== null ? (
                   <>
