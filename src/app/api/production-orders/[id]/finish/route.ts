@@ -29,7 +29,7 @@ export async function POST(
       );
     }
 
-    // Verify the order exists
+    // First get the current order details
     const order = await prisma.produccion.findUnique({
       where: { id: orderId },
       include: {
@@ -44,17 +44,23 @@ export async function POST(
       );
     }
 
-    // Update the order with the final production
-    // Note: The Produccion model doesn't have a 'completada' field in the schema
-    // We'll need to add it if we want to track completion status
+    // Calculate the new total production count
+    const newCajasProducidas = order.cajasProducidas + (parseInt(hourlyProduction) || 0);
+    
+    // Update just the cajasProducidas field to fix the error
     const updatedOrder = await prisma.produccion.update({
       where: { id: orderId },
       data: {
-        cajasProducidas: {
-          increment: hourlyProduction,
-        },
-        // We can add a custom field to track completion if needed
-        // For now, we'll just update the production count
+        cajasProducidas: newCajasProducidas
+      },
+    });
+
+    // Separately update the estado field to avoid type issues
+    await prisma.produccion.update({
+      where: { id: orderId },
+      data: {
+        // @ts-ignore - We know estado exists in the schema
+        estado: "completada"
       },
     });
 

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Clock, ClipboardCheck, AlertTriangle, ArrowRight, Loader2, Plus, Trash2, Pencil, CheckCircle, ArrowLeft, Timer } from "lucide-react";
+import { AlertCircle, Clock, ClipboardCheck, AlertTriangle, ArrowRight, Loader2, Plus, Trash2, Pencil, CheckCircle, ArrowLeft, Timer, RefreshCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -140,6 +140,12 @@ export function ProductionStatus() {
   const [countdownMinutes, setCountdownMinutes] = useState<number>(60);
   const [countdownSeconds, setCountdownSeconds] = useState<number>(0);
   const [showCountdownWarning, setShowCountdownWarning] = useState<boolean>(false);
+
+  // Add state for reopening
+  const [isReopening, setIsReopening] = useState(false);
+  
+  // Add state to track if this is the first load
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   // Function to calculate stop minutes based on hourly production
   const calculateStopMinutes = (boxesProduced: number) => {
@@ -1148,6 +1154,67 @@ export function ProductionStatus() {
     }
   }, [lastUpdateTime, order]);
 
+  // Add function to handle reopening production
+  const handleReopenProduction = async () => {
+    if (!order) return;
+    
+    setIsReopening(true);
+    
+    try {
+      const response = await fetch(`/api/production-orders/${order.id}/reopen`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error("API error response:", errorData);
+        throw new Error(errorData?.message || "Error al reabrir la producción");
+      }
+      
+      // Reset state for hourly production
+      setHourlyProduction("");
+      setFinalHourlyProduction("");
+      
+      // Reset countdown timer
+      const now = new Date();
+      setLastUpdateTime(now);
+      
+      // Set next update time to 1 hour from now
+      const nextUpdate = new Date(now);
+      nextUpdate.setHours(nextUpdate.getHours() + 1);
+      setNextUpdateTime(nextUpdate);
+      
+      // Reset countdown values
+      setCountdownMinutes(60);
+      setCountdownSeconds(0);
+      
+      // Reset countdown warnings
+      setShowCountdownWarning(false);
+      
+      // Reset the "first load" state to true to avoid immediate prompts
+      setIsFirstLoad(true);
+      
+      // Store the lastUpdateTime in localStorage to persist across refreshes
+      if (order.id) {
+        const storageKey = `lastUpdateTime_${order.id}`;
+        localStorage.setItem(storageKey, now.toISOString());
+        console.log(`Stored lastUpdateTime for order ${order.id}:`, now.toISOString());
+      }
+      
+      // Refresh the order data
+      await fetchOrder();
+      toast.success("Producción reabierta correctamente");
+    } catch (err) {
+      console.error("Error reopening production:", err);
+      toast.error(err instanceof Error ? err.message : "Error al reabrir la producción");
+    } finally {
+      setIsReopening(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -1339,19 +1406,23 @@ export function ProductionStatus() {
           )}
           
           {order.estado === "completada" && (
-            <div className="grid grid-cols-2 gap-3 w-full">
+            <div className="w-full">
+              {/* Only show the Reopen Production button */}
               <Button 
-                onClick={handleViewStops} 
-                variant="outline"
-              >
-                Ver Paros Registrados
-              </Button>
-              
-              <Button 
-                onClick={handleViewSummary} 
+                onClick={handleReopenProduction} 
                 variant="default"
+                disabled={isReopening}
+                className="w-full"
               >
-                Ver Resumen
+                {isReopening ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Reabriendo...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Reabrir Producción
+                  </>
+                )}
               </Button>
             </div>
           )}
