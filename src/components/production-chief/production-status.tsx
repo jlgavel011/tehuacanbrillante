@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Clock, ClipboardCheck, AlertTriangle, ArrowRight, Loader2, Plus, Trash2, Pencil, CheckCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle, Clock, ClipboardCheck, AlertTriangle, ArrowRight, Loader2, Plus, Trash2, Pencil, CheckCircle, ArrowLeft, Timer } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -304,15 +304,30 @@ export function ProductionStatus() {
       console.log("Order data:", orderData);
       setOrder(orderData);
       
-      // Use lastUpdateTime from API if available
-      if (orderData.lastUpdateTime) {
+      // Check for stored lastUpdateTime in localStorage first
+      const storedUpdateTime = getStoredLastUpdateTime(orderId);
+      
+      if (storedUpdateTime) {
+        console.log("Using lastUpdateTime from localStorage:", storedUpdateTime);
+        setLastUpdateTime(storedUpdateTime);
+      } else if (orderData.lastUpdateTime) {
+        // Use lastUpdateTime from API if available and not in localStorage
         console.log("Using lastUpdateTime from API:", orderData.lastUpdateTime);
-        setLastUpdateTime(new Date(orderData.lastUpdateTime));
+        const apiLastUpdateTime = new Date(orderData.lastUpdateTime);
+        setLastUpdateTime(apiLastUpdateTime);
+        
+        // Also store this in localStorage for future refreshes
+        storeLastUpdateTime(orderId, apiLastUpdateTime);
       } else if (orderData.estado === "en_progreso") {
         // Fallback for older records without lastUpdateTime
-        console.log("No lastUpdateTime in API response, using current time");
-        setLastUpdateTime(new Date());
+        console.log("No lastUpdateTime in API response or localStorage, using current time");
+        const now = new Date();
+        setLastUpdateTime(now);
+        storeLastUpdateTime(orderId, now);
       }
+      
+      // Set total cajas producidas
+      setTotalCajasProducidas(orderData.cajasProducidas || 0);
     } catch (err) {
       console.error("Error fetching order:", err);
       setError(err instanceof Error ? err.message : "Error al obtener la orden de producción");
@@ -403,6 +418,9 @@ export function ProductionStatus() {
         console.log("Using lastUpdateTime from API response:", apiLastUpdateTime);
         setLastUpdateTime(apiLastUpdateTime);
         
+        // Store in localStorage
+        storeLastUpdateTime(order.id, apiLastUpdateTime);
+        
         // Set next update time to 1 hour from the API lastUpdateTime
         const nextUpdate = new Date(apiLastUpdateTime);
         nextUpdate.setHours(nextUpdate.getHours() + 1);
@@ -412,6 +430,9 @@ export function ProductionStatus() {
         console.log("No lastUpdateTime in API response, using current time");
         const now = new Date();
         setLastUpdateTime(now);
+        
+        // Store in localStorage
+        storeLastUpdateTime(order.id, now);
         
         // Set next update time to 1 hour from now
         const nextUpdate = new Date(now);
@@ -481,15 +502,15 @@ export function ProductionStatus() {
   };
 
   const handleHourlyUpdate = async () => {
-    if (!hourlyProduction || isNaN(parseInt(hourlyProduction))) {
-      toast.error("Por favor ingrese la cantidad de cajas producidas en la última hora");
-      return;
-    }
+    if (!order || !hourlyProduction) return;
     
     setIsUpdating(true);
     
     try {
-      if (!order) return;
+      const hourlyProductionValue = parseInt(hourlyProduction);
+      
+      // Calculate total cajas produced
+      const newCajasProducidas = totalCajasProducidas + hourlyProductionValue;
       
       const response = await fetch(`/api/production-orders/${order.id}/update`, {
         method: "POST",
@@ -497,13 +518,16 @@ export function ProductionStatus() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          cajasProducidas: totalCajasProducidas + parseInt(hourlyProduction),
+          cajasProducidas: newCajasProducidas
         }),
       });
       
       if (!response.ok) {
         throw new Error("Error al actualizar la producción");
       }
+      
+      // Update total cajas
+      setTotalCajasProducidas(newCajasProducidas);
       
       // Get the updated order with lastUpdateTime from API
       const updatedOrder = await response.json();
@@ -514,6 +538,9 @@ export function ProductionStatus() {
         console.log("Using lastUpdateTime from API response:", apiLastUpdateTime);
         setLastUpdateTime(apiLastUpdateTime);
         
+        // Store in localStorage
+        storeLastUpdateTime(order.id, apiLastUpdateTime);
+        
         // Set next update time to 1 hour from the API lastUpdateTime
         const nextUpdate = new Date(apiLastUpdateTime);
         nextUpdate.setHours(nextUpdate.getHours() + 1);
@@ -523,6 +550,9 @@ export function ProductionStatus() {
         console.log("No lastUpdateTime in API response, using current time");
         const now = new Date();
         setLastUpdateTime(now);
+        
+        // Store in localStorage
+        storeLastUpdateTime(order.id, now);
         
         // Set next update time to 1 hour from now
         const nextUpdate = new Date(now);
@@ -676,7 +706,12 @@ export function ProductionStatus() {
   const formatTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+    
+    if (hours > 0) {
+      return `${hours}h ${mins}m`;
+    } else {
+      return `${mins}m`;
+    }
   };
 
   const handleAddParo = () => {
@@ -1061,6 +1096,57 @@ export function ProductionStatus() {
     setHourlyProduction("");
     setShowHourlyUpdate(true);
   };
+
+  // Function to store lastUpdateTime in localStorage
+  const storeLastUpdateTime = useCallback((orderId: string, timestamp: Date) => {
+    if (!orderId) return;
+    
+    try {
+      const storageKey = `lastUpdateTime_${orderId}`;
+      localStorage.setItem(storageKey, timestamp.toISOString());
+      console.log(`Stored lastUpdateTime for order ${orderId}:`, timestamp.toISOString());
+    } catch (error) {
+      console.error('Error storing lastUpdateTime in localStorage:', error);
+    }
+  }, []);
+
+  // Function to retrieve lastUpdateTime from localStorage
+  const getStoredLastUpdateTime = useCallback((orderId: string): Date | null => {
+    if (!orderId) return null;
+    
+    try {
+      const storageKey = `lastUpdateTime_${orderId}`;
+      const storedTime = localStorage.getItem(storageKey);
+      
+      if (storedTime) {
+        console.log(`Retrieved lastUpdateTime for order ${orderId}:`, storedTime);
+        return new Date(storedTime);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error retrieving lastUpdateTime from localStorage:', error);
+      return null;
+    }
+  }, []);
+
+  // Update timeElapsed every minute
+  useEffect(() => {
+    if (lastUpdateTime && order?.estado === "en_progreso") {
+      const interval = setInterval(() => {
+        const now = new Date();
+        const diffMinutes = Math.floor((now.getTime() - lastUpdateTime.getTime()) / (1000 * 60));
+        setTimeElapsed(diffMinutes);
+      }, 60000); // Update every minute
+      
+      // Initial calculation
+      const now = new Date();
+      const diffMinutes = Math.floor((now.getTime() - lastUpdateTime.getTime()) / (1000 * 60));
+      setTimeElapsed(diffMinutes);
+      
+      return () => clearInterval(interval);
+    }
+  }, [lastUpdateTime, order]);
 
   if (isLoading) {
     return (
@@ -2332,6 +2418,42 @@ export function ProductionStatus() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Additional Information Card */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium text-gray-500">Estado</h3>
+          <Badge className={order?.estado === "en_progreso" ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"}>
+            {order?.estado === "pendiente" ? "Pendiente" : 
+             order?.estado === "en_progreso" ? "En Progreso" : 
+             "Completada"}
+          </Badge>
+        </div>
+        <div className="flex flex-col space-y-2">
+          <div className="flex items-center">
+            <Clock className="h-5 w-5 text-gray-400 mr-2" />
+            <div>
+              <p className="text-sm text-gray-500">Última actualización</p>
+              <p className="text-sm font-medium">
+                {lastUpdateTime ? lastUpdateTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "No actualizado"}
+              </p>
+            </div>
+          </div>
+          
+          {/* Time elapsed since last update */}
+          {lastUpdateTime && order?.estado === "en_progreso" && (
+            <div className="flex items-center">
+              <Timer className="h-5 w-5 text-gray-400 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Tiempo desde última actualización</p>
+                <p className="text-sm font-medium">
+                  {formatTime(timeElapsed)}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 } 
