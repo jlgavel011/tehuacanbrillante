@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 
 type SidebarContextType = {
   sidebarOpen: boolean;
@@ -8,6 +9,7 @@ type SidebarContextType = {
   closeSidebar: () => void;
   openSidebar: () => void;
   isMobile: boolean;
+  sidebarHidden: boolean;
 };
 
 const SidebarContext = createContext<SidebarContextType>({
@@ -16,6 +18,7 @@ const SidebarContext = createContext<SidebarContextType>({
   closeSidebar: () => {},
   openSidebar: () => {},
   isMobile: false,
+  sidebarHidden: false,
 });
 
 export const SidebarProvider = ({ children }: { children: React.ReactNode }) => {
@@ -23,6 +26,10 @@ export const SidebarProvider = ({ children }: { children: React.ReactNode }) => 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [touchStartX, setTouchStartX] = useState(0);
+  const { data: session } = useSession();
+  
+  // Check if the user has the PRODUCTION_CHIEF role to hide the sidebar
+  const sidebarHidden = session?.user?.role === "PRODUCTION_CHIEF";
 
   // Handle window resize to automatically adjust sidebar state
   useEffect(() => {
@@ -34,7 +41,10 @@ export const SidebarProvider = ({ children }: { children: React.ReactNode }) => 
       if (mobile) {
         setSidebarOpen(false);
       } else {
-        setSidebarOpen(true);
+        // Only open sidebar on desktop if it's not hidden for PRODUCTION_CHIEF role
+        if (!sidebarHidden) {
+          setSidebarOpen(true);
+        }
       }
     };
 
@@ -49,7 +59,7 @@ export const SidebarProvider = ({ children }: { children: React.ReactNode }) => 
         window.removeEventListener("resize", handleResize);
       }
     };
-  }, []);
+  }, [sidebarHidden]);
 
   // Handle route changes - close sidebar on mobile when navigating
   useEffect(() => {
@@ -68,7 +78,7 @@ export const SidebarProvider = ({ children }: { children: React.ReactNode }) => 
 
   // Handle swipe gestures on mobile
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || sidebarHidden) return;
 
     const handleTouchStart = (e: TouchEvent) => {
       setTouchStartX(e.touches[0].clientX);
@@ -97,11 +107,11 @@ export const SidebarProvider = ({ children }: { children: React.ReactNode }) => 
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [sidebarOpen, touchStartX]);
+  }, [sidebarOpen, touchStartX, sidebarHidden]);
 
   // Handle document clicks to close sidebar when clicking outside
   useEffect(() => {
-    if (typeof window === 'undefined' || !isMobile) return;
+    if (typeof window === 'undefined' || !isMobile || sidebarHidden) return;
 
     const handleDocumentClick = (e: MouseEvent) => {
       // Check if sidebar is open and click is outside the sidebar
@@ -119,10 +129,12 @@ export const SidebarProvider = ({ children }: { children: React.ReactNode }) => 
     return () => {
       document.removeEventListener('click', handleDocumentClick);
     };
-  }, [sidebarOpen, isMobile]);
+  }, [sidebarOpen, isMobile, sidebarHidden]);
 
   const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    if (!sidebarHidden) {
+      setSidebarOpen(!sidebarOpen);
+    }
   };
 
   const closeSidebar = () => {
@@ -130,11 +142,13 @@ export const SidebarProvider = ({ children }: { children: React.ReactNode }) => 
   };
   
   const openSidebar = () => {
-    setSidebarOpen(true);
+    if (!sidebarHidden) {
+      setSidebarOpen(true);
+    }
   };
 
   return (
-    <SidebarContext.Provider value={{ sidebarOpen, toggleSidebar, closeSidebar, openSidebar, isMobile }}>
+    <SidebarContext.Provider value={{ sidebarOpen, toggleSidebar, closeSidebar, openSidebar, isMobile, sidebarHidden }}>
       {children}
     </SidebarContext.Provider>
   );

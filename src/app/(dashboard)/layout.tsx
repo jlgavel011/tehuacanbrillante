@@ -10,14 +10,14 @@ import { useSidebar } from "@/lib/context/SidebarContext";
 
 // Inner component to use the sidebar context
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
-  const { sidebarOpen } = useSidebar();
+  const { sidebarOpen, sidebarHidden } = useSidebar();
   
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
       <div 
         className={`flex-1 flex flex-col transition-all duration-300 ease-in-out ${
-          sidebarOpen ? 'md:ml-64' : 'md:ml-20'
+          !sidebarHidden && sidebarOpen ? 'md:ml-64' : (!sidebarHidden ? 'md:ml-20' : 'ml-0')
         }`}
       >
         <Header />

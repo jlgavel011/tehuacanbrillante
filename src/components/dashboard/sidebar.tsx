@@ -39,7 +39,7 @@ const secondaryNavigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { sidebarOpen, closeSidebar, toggleSidebar } = useSidebar();
+  const { sidebarOpen, closeSidebar, toggleSidebar, sidebarHidden } = useSidebar();
   const [mounted, setMounted] = useState(false);
 
   // Handle hydration mismatch
@@ -62,6 +62,11 @@ export function Sidebar() {
   }, [sidebarOpen, closeSidebar]);
 
   if (!mounted) {
+    return null;
+  }
+
+  // If sidebar is hidden for PRODUCTION_CHIEF role, don't render anything
+  if (sidebarHidden) {
     return null;
   }
 

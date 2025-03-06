@@ -25,7 +25,7 @@ import { useSidebar } from "@/lib/context/SidebarContext";
 
 export function Header() {
   const { data: session } = useSession();
-  const { sidebarOpen, toggleSidebar, isMobile } = useSidebar();
+  const { sidebarOpen, toggleSidebar, isMobile, sidebarHidden } = useSidebar();
 
   // Get the first letter of the user's name for the avatar fallback
   const getInitials = () => {
@@ -42,22 +42,25 @@ export function Header() {
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 justify-between">
           <div className="flex items-center">
-            {/* Mobile menu button - toggles the sidebar */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden mr-2 text-black hover:bg-gray-100 focus:ring-2 focus:ring-primary"
-              onClick={toggleSidebar}
-              aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
-            >
-              {sidebarOpen ? (
-                <X className="h-6 w-6 text-black" />
-              ) : (
-                <Menu className="h-6 w-6 text-black" />
-              )}
-            </Button>
+            {/* Mobile menu button - toggles the sidebar, only shown if sidebar is not hidden */}
+            {!sidebarHidden && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden mr-2 text-black hover:bg-gray-100 focus:ring-2 focus:ring-primary"
+                onClick={toggleSidebar}
+                aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
+              >
+                {sidebarOpen ? (
+                  <X className="h-6 w-6 text-black" />
+                ) : (
+                  <Menu className="h-6 w-6 text-black" />
+                )}
+              </Button>
+            )}
             
-            <div className="md:hidden flex items-center ml-2">
+            {/* Always show the logo on mobile when sidebar is hidden */}
+            <div className={`${!sidebarHidden ? 'md:hidden' : ''} flex items-center ml-2`}>
               <span className="w-2 h-8 bg-primary rounded-l-md mr-2"></span>
               <span className="font-semibold text-lg text-black">Tehuacán Brillante</span>
             </div>

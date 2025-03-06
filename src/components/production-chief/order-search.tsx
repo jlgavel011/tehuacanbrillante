@@ -94,7 +94,7 @@ export function OrderSearch() {
 
   function handleManageProduction() {
     if (order) {
-      router.push(`/production-chief?orderId=${order.id}&tab=production`);
+      router.push(`/production-chief?orderId=${order.id}`);
     }
   }
 
