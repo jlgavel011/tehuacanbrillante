@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Clock, ClipboardCheck, AlertTriangle, ArrowRight, Loader2, Plus, Trash2, Pencil, CheckCircle, ArrowLeft, Timer, RefreshCw } from "lucide-react";
+import { AlertCircle, Clock, ClipboardCheck, AlertTriangle, ArrowRight, Loader2, Plus, Trash2, Pencil, CheckCircle, ArrowLeft, Timer, RefreshCw, PlayCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -190,13 +190,22 @@ export function ProductionStatus() {
   }, [hourlyProduction, order]);
 
   useEffect(() => {
-    // Get the orderId from the URL query parameters
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("orderId");
-    console.log("OrderId from URL:", id);
+    // Get orderId from URL query parameters
+    const searchParams = new URLSearchParams(window.location.search);
+    const orderIdFromUrl = searchParams.get('orderId');
+    const isReopened = searchParams.get('reopened') === 'true';
     
-    if (id) {
-      setOrderId(id);
+    if (orderIdFromUrl) {
+      setOrderId(orderIdFromUrl);
+      
+      // If this is a reopened order, make sure to clear any reopened flag in localStorage
+      if (isReopened) {
+        console.log(`Detected reopened order: ${orderIdFromUrl}`);
+        localStorage.removeItem(`reopened_${orderIdFromUrl}`);
+        
+        // Make sure we're in "first load" state for reopened orders
+        setIsFirstLoad(true);
+      }
     }
   }, []);
 
@@ -657,9 +666,6 @@ export function ProductionStatus() {
         throw new Error(errorData?.message || "Error al finalizar la producción");
       }
       
-      // Refresh the order data
-      await fetchOrder();
-      
       // Reset all paros lists
       setParosMantenimiento([]);
       setParosCalidad([]);
@@ -669,7 +675,13 @@ export function ProductionStatus() {
       setHourlyProduction("");
       setFinalHourlyProduction("");
       
-      toast.success("Producción actualizada correctamente");
+      toast.success("Producción finalizada correctamente");
+      
+      // Redirect to the search page after successful completion
+      setTimeout(() => {
+        router.push('/production-chief?tab=search');
+      }, 1500); // Small delay to allow the toast to be visible
+      
     } catch (err) {
       console.error("Error finishing production:", err);
       toast.error(err instanceof Error ? err.message : "Error al finalizar la producción");
@@ -1053,11 +1065,21 @@ export function ProductionStatus() {
                 <TableCell className="max-w-[200px] truncate">{paro.descripcion}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end space-x-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleEditParo(index)}>
-                      <Pencil className="h-4 w-4" />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleEditParo(index)}
+                      className="h-8 w-8 rounded-full hover:bg-primary-light/30 dark:hover:bg-primary-dark/30 transition-colors"
+                    >
+                      <Pencil className="h-4 w-4 text-primary dark:text-primary-light" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteParo(index, "Mantenimiento")}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleDeleteParo(index, "Mantenimiento")}
+                      className="h-8 w-8 rounded-full hover:bg-error-light dark:hover:bg-error-dark/30 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4 text-error" />
                     </Button>
                   </div>
                 </TableCell>
@@ -1202,11 +1224,28 @@ export function ProductionStatus() {
         const storageKey = `lastUpdateTime_${order.id}`;
         localStorage.setItem(storageKey, now.toISOString());
         console.log(`Stored lastUpdateTime for order ${order.id}:`, now.toISOString());
+        
+        // Also store a flag to indicate this order was just reopened
+        // This will help ensure the page fully refreshes with the new state
+        localStorage.setItem(`reopened_${order.id}`, "true");
       }
       
-      // Refresh the order data
-      await fetchOrder();
       toast.success("Producción reabierta correctamente");
+      
+      // Redirect to the production page with this order
+      setTimeout(() => {
+        try {
+          console.log(`Redirecting to order page for order ID: ${order.id}`);
+          // Force a hard navigation to ensure a fresh page load with the reopened order
+          // Add timestamp to prevent caching
+          window.location.href = `/production-chief?orderId=${order.id}&reopened=true&t=${Date.now()}`;
+        } catch (redirectError) {
+          console.error("Error during redirect:", redirectError);
+          // Use router as fallback
+          router.push(`/production-chief?orderId=${order.id}&reopened=true`);
+        }
+      }, 1000); // Reduced delay for better user experience
+      
     } catch (err) {
       console.error("Error reopening production:", err);
       toast.error(err instanceof Error ? err.message : "Error al reabrir la producción");
@@ -1217,9 +1256,23 @@ export function ProductionStatus() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Cargando información de la orden...</span>
+      <div className="flex flex-col justify-center items-center h-64 space-y-4">
+        <div className="relative">
+          <div className="h-16 w-16 rounded-full border-4 border-t-primary border-r-transparent border-b-primary border-l-transparent animate-spin-slow"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="relative">
+              <ClipboardCheck className="h-6 w-6 text-primary" />
+              <span className="absolute inset-0 animate-ping h-full w-full rounded-full bg-primary opacity-20"></span>
+            </div>
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="text-lg font-medium text-gray-700 dark:text-gray-300">Cargando información de la orden</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">Por favor espere un momento...</p>
+        </div>
+        <div className="w-48 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-2">
+          <div className="h-full bg-primary rounded-full" style={{ width: '70%', animation: 'pulse 1.5s infinite' }}></div>
+        </div>
       </div>
     );
   }
@@ -1258,8 +1311,12 @@ export function ProductionStatus() {
               </CardDescription>
             </div>
             <Badge variant={
-              order.estado === "completada" ? "secondary" :
+              order.estado === "completada" ? "outline" : // Changed from secondary to outline
               order.estado === "en_progreso" ? "default" : "outline"
+            } className={
+              order.estado === "completada" ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-100" : // Added yellow styling
+              order.estado === "en_progreso" ? "bg-green-100 text-green-800 hover:bg-green-100" : 
+              "bg-gray-100 text-gray-800 hover:bg-gray-100"
             }>
               {order.estado === "completada" ? "Completada" :
                order.estado === "en_progreso" ? "En Progreso" : "Pendiente"}
@@ -1339,16 +1396,23 @@ export function ProductionStatus() {
           {order.estado === "pendiente" && (
             <Button 
               onClick={handleStartProduction} 
-              className="w-full" 
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white" 
               disabled={isStarting}
+              size="lg"
             >
               {isStarting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Iniciando...
+                  <div className="mr-2 relative">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="absolute inset-0 animate-ping h-full w-full rounded-full bg-white opacity-20"></span>
+                  </div>
+                  <span className="animate-pulse">Iniciando producción...</span>
                 </>
               ) : (
-                "Iniciar Producción"
+                <>
+                  <PlayCircle className="mr-2 h-5 w-5" />
+                  Iniciar Producción
+                </>
               )}
             </Button>
           )}
@@ -1380,7 +1444,7 @@ export function ProductionStatus() {
                   <Button 
                     onClick={handleOpenHourlyUpdate}
                     size="sm"
-                    className={showCountdownWarning ? "bg-red-600 hover:bg-red-700" : ""}
+                    className="bg-warning hover:bg-warning-dark text-white font-medium transition-all duration-200"
                   >
                     Actualizar Ahora
                   </Button>
@@ -1391,15 +1455,17 @@ export function ProductionStatus() {
                 <Button 
                   onClick={handleOpenHourlyUpdate} 
                   variant="default"
+                  className="bg-primary hover:bg-primary-dark text-white transition-all duration-300 transform hover:-translate-y-1 hover:shadow-md"
                 >
-                  <Clock className="mr-2 h-4 w-4" /> Actualizar por Hora
+                  <Clock className="mr-2 h-5 w-5" /> Actualizar por Hora
                 </Button>
                 
                 <Button 
                   onClick={() => setShowFinishDialog(true)} 
                   variant="outline"
+                  className="border-success text-success hover:bg-success-light hover:border-success-dark transition-all duration-300 transform hover:-translate-y-1 hover:shadow-md"
                 >
-                  <CheckCircle className="mr-2 h-4 w-4" /> Finalizar Producción
+                  <CheckCircle className="mr-2 h-5 w-5" /> Finalizar Producción
                 </Button>
               </div>
             </div>
@@ -1412,15 +1478,20 @@ export function ProductionStatus() {
                 onClick={handleReopenProduction} 
                 variant="default"
                 disabled={isReopening}
-                className="w-full"
+                className="w-full bg-gradient-to-r from-secondary to-secondary-dark hover:from-secondary-dark hover:to-secondary text-white transition-all duration-300 hover:shadow-lg"
+                size="lg"
               >
                 {isReopening ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Reabriendo...
+                    <div className="relative mr-2">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span className="absolute inset-0 animate-ping h-full w-full rounded-full bg-white opacity-20"></span>
+                    </div>
+                    <span className="animate-pulse">Reabriendo producción...</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="mr-2 h-4 w-4" /> Reabrir Producción
+                    <RefreshCw className="mr-2 h-5 w-5 animate-spin-slow" /> Reabrir Producción
                   </>
                 )}
               </Button>
@@ -1433,14 +1504,14 @@ export function ProductionStatus() {
       <Dialog open={showHourlyUpdate} onOpenChange={setShowHourlyUpdate}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Actualización por Hora</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-primary">Actualización por Hora</DialogTitle>
             <DialogDescription>
               Ingrese la cantidad de cajas producidas en la última hora.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="hourlyProduction" className="text-right">
+              <Label htmlFor="hourlyProduction" className="text-right font-medium">
                 Cajas producidas
               </Label>
               <Input
@@ -1448,32 +1519,40 @@ export function ProductionStatus() {
                 type="number"
                 value={hourlyProduction}
                 onChange={(e) => setHourlyProduction(e.target.value)}
-                className="col-span-3"
+                className="col-span-3 focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200"
                 placeholder="Ingrese la cantidad de cajas"
               />
             </div>
             {order?.producto?.velocidadProduccion && (
-              <div className="text-sm text-muted-foreground px-4">
-                Velocidad registrada: {order.producto.velocidadProduccion} cajas/hora
+              <div className="text-sm text-muted-foreground px-4 py-2 bg-muted/30 rounded-md border border-muted/50">
+                <span className="font-medium">Velocidad registrada:</span> {order.producto.velocidadProduccion} cajas/hora
               </div>
             )}
           </div>
           <DialogFooter className="flex justify-between">
-            <Button variant="outline" onClick={() => setShowHourlyUpdate(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowHourlyUpdate(false)}
+              className="border-border hover:bg-surface transition-all"
+            >
               Cancelar
             </Button>
             <Button 
               variant="default" 
               onClick={handleStartParosRegistration}
               disabled={!hourlyProduction || isNaN(parseInt(hourlyProduction))}
+              className="bg-primary hover:bg-primary-dark text-white transition-all duration-200"
             >
               {isUpdating ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Procesando...
+                  <div className="relative mr-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="absolute inset-0 animate-ping h-full w-full rounded-full bg-white opacity-20"></span>
+                  </div>
+                  <span className="animate-pulse">Procesando...</span>
                 </>
               ) : (
-                "Registrar Producción"
+                "Continuar"
               )}
             </Button>
           </DialogFooter>
@@ -1884,14 +1963,14 @@ export function ProductionStatus() {
       <Dialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Finalizar Producción</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-success">Finalizar Producción</DialogTitle>
             <DialogDescription>
               Ingrese la cantidad de cajas producidas en la última hora y registre los paros de producción.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="hourlyProduction" className="text-right">
+              <Label htmlFor="hourlyProduction" className="text-right font-medium">
                 Cajas producidas
               </Label>
               <Input
@@ -1899,19 +1978,31 @@ export function ProductionStatus() {
                 type="number"
                 value={finalHourlyProduction}
                 onChange={(e) => setFinalHourlyProduction(e.target.value)}
-                className="col-span-3"
+                className="col-span-3 focus:ring-2 focus:ring-success focus:border-success transition-all duration-200"
+                placeholder="Ingrese la cantidad final"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowFinishDialog(false)}>
+          <DialogFooter className="flex justify-between">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowFinishDialog(false)}
+              className="border-border hover:bg-surface transition-all"
+            >
               Cancelar
             </Button>
-            <Button onClick={handleFinishProduction} disabled={isUpdating}>
+            <Button 
+              onClick={handleFinishProduction} 
+              disabled={isUpdating}
+              className="bg-success hover:bg-success-dark text-white transition-all duration-200"
+            >
               {isUpdating ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Finalizando...
+                  <div className="relative mr-2">
+                    <Loader2 className="h-5 w-5 animate-spin-slow" />
+                    <span className="absolute inset-0 animate-ping h-full w-full rounded-full bg-white opacity-20"></span>
+                  </div>
+                  <span className="animate-pulse">Finalizando producción...</span>
                 </>
               ) : (
                 "Finalizar Producción"
@@ -2324,53 +2415,25 @@ export function ProductionStatus() {
           </div>
           
           <DialogFooter className="flex justify-between pt-4 border-t mt-2">
-            <Button variant="outline" onClick={() => {
-              setShowSummaryDialog(false);
-              
-              // Go back to the appropriate step based on which paros are missing
-              if (parosMantenimiento.length === 0) {
-                setCurrentParoType("Mantenimiento");
-                const mantenimientoTipo = stopTypes.find(tipo => tipo.nombre === "Mantenimiento");
-                if (mantenimientoTipo) {
-                  setCurrentParo({
-                    tiempoMinutos: 0,
-                    tipoParoId: mantenimientoTipo.id,
-                    tipoParoNombre: mantenimientoTipo.nombre,
-                    sistemaId: "placeholder",
-                    subsistemaId: "placeholder",
-                    subsubsistemaId: "placeholder",
-                    descripcion: ""
-                  });
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowSummaryDialog(false);
+                
+                // Go back to the appropriate step based on which paros are missing
+                if (parosMantenimiento.length === 0) {
+                  setCurrentParoType("Mantenimiento");
+                } else if (parosCalidad.length === 0) {
+                  setCurrentParoType("Calidad");
+                } else if (parosOperacion.length === 0) {
+                  setCurrentParoType("Operación");
                 }
-              } else if (parosCalidad.length === 0) {
-                setCurrentParoType("Calidad");
-                const calidadTipo = stopTypes.find(tipo => tipo.nombre === "Calidad");
-                if (calidadTipo) {
-                  setCurrentParo({
-                    tiempoMinutos: 0,
-                    tipoParoId: calidadTipo.id,
-                    tipoParoNombre: calidadTipo.nombre,
-                    sistemaId: "placeholder",
-                    descripcion: ""
-                  });
-                }
-              } else {
-                setCurrentParoType("Operación");
-                const operacionTipo = stopTypes.find(tipo => tipo.nombre === "Operación");
-                if (operacionTipo) {
-                  setCurrentParo({
-                    tiempoMinutos: 0,
-                    tipoParoId: operacionTipo.id,
-                    tipoParoNombre: operacionTipo.nombre,
-                    sistemaId: "placeholder",
-                    descripcion: ""
-                  });
-                }
-              }
-              
-              setShowAddParoDialog(true);
-            }}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Volver a Editar Paros
+                
+                setShowAddParoDialog(true);
+              }}
+              className="border-gray-300 hover:bg-gray-50 transition-all"
+            >
+              Volver
             </Button>
             <Button 
               onClick={completeFinishProduction}
