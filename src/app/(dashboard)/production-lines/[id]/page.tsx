@@ -25,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { QualityTab } from "../components/QualityTab";
 // Dynamic import of the HierarchicalView component
 const DynamicHierarchicalView = dynamic(
   () => import('../components/HierarchicalView').then(mod => mod.HierarchicalView),
@@ -506,10 +508,21 @@ export default function ProductionLineDetailPage() {
             />
           ) : (
             <Card>
-              <CardContent className="p-6">
-                <DynamicHierarchicalView
-                  productionLineId={id}
-                />
+              <CardContent className="p-0">
+                <Tabs defaultValue="systems" className="w-full">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="systems" className="flex-1">Sistemas</TabsTrigger>
+                    <TabsTrigger value="quality" className="flex-1">Desviación de Calidad</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="systems" className="p-6">
+                    <DynamicHierarchicalView productionLineId={id} />
+                  </TabsContent>
+                  
+                  <TabsContent value="quality" className="p-6">
+                    <QualityTab productionLineId={id} />
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           )}

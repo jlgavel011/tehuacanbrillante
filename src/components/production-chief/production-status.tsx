@@ -98,6 +98,12 @@ type Paro = {
   descripcion?: string;
 };
 
+type ProductionNote = {
+  id: string;
+  content: string;
+  timestamp: Date;
+};
+
 export function ProductionStatus() {
   const router = useRouter();
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -146,6 +152,14 @@ export function ProductionStatus() {
   
   // Add state to track if this is the first load
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+
+  // New state for production notes
+  const [productionNotes, setProductionNotes] = useState<ProductionNote[]>([]);
+  const [currentNote, setCurrentNote] = useState<string>("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+
+  // Add new state for inline editing
+  const [inlineEditNote, setInlineEditNote] = useState<string>("");
 
   // Function to calculate stop minutes based on hourly production
   const calculateStopMinutes = (boxesProduced: number) => {
@@ -1241,6 +1255,71 @@ export function ProductionStatus() {
     }
   };
 
+  // Function to add a new note
+  const handleAddNote = () => {
+    if (!currentNote.trim()) return;
+    
+    if (productionNotes.length >= 6) {
+      toast.error("Máximo 6 notas permitidas");
+      return;
+    }
+    
+    const newNote: ProductionNote = {
+      id: crypto.randomUUID(),
+      content: currentNote.trim(),
+      timestamp: new Date()
+    };
+    
+    setProductionNotes([...productionNotes, newNote]);
+    setCurrentNote("");
+    toast.success("Nota agregada correctamente");
+  };
+
+  // Function to edit a note
+  const handleEditNote = (noteId: string) => {
+    const note = productionNotes.find(n => n.id === noteId);
+    if (note) {
+      setInlineEditNote(note.content);
+      setEditingNoteId(noteId);
+    }
+  };
+
+  // Function to update a note
+  const handleUpdateNote = () => {
+    if (!editingNoteId || !currentNote.trim()) return;
+    
+    setProductionNotes(productionNotes.map(note => 
+      note.id === editingNoteId 
+        ? { ...note, content: currentNote.trim(), timestamp: new Date() }
+        : note
+    ));
+    
+    setCurrentNote("");
+    setEditingNoteId(null);
+    toast.success("Nota actualizada correctamente");
+  };
+
+  // Function to delete a note
+  const handleDeleteNote = (noteId: string) => {
+    setProductionNotes(productionNotes.filter(note => note.id !== noteId));
+    toast.success("Nota eliminada correctamente");
+  };
+
+  // Add new function for inline update
+  const handleInlineUpdateNote = (noteId: string) => {
+    if (!inlineEditNote.trim()) return;
+    
+    setProductionNotes(productionNotes.map(note => 
+      note.id === noteId 
+        ? { ...note, content: inlineEditNote.trim(), timestamp: new Date() }
+        : note
+    ));
+    
+    setEditingNoteId(null);
+    setInlineEditNote("");
+    toast.success("Nota actualizada correctamente");
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col justify-center items-center h-64 space-y-4">
@@ -1489,13 +1568,37 @@ export function ProductionStatus() {
       
       {/* Hourly Update Dialog */}
       <Dialog open={showHourlyUpdate} onOpenChange={setShowHourlyUpdate}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-primary">Actualización por Hora</DialogTitle>
             <DialogDescription>
               Ingrese la cantidad de cajas producidas en la última hora.
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Production Notes Section - Moved to top */}
+          {productionNotes.length > 0 && (
+            <div className="border rounded-lg p-4 mb-4">
+              <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
+                <ClipboardCheck className="h-4 w-4 text-primary" />
+                Notas de Producción
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {productionNotes.map((note) => (
+                  <div 
+                    key={note.id}
+                    className="p-3 bg-yellow-100 dark:bg-yellow-900/50 rounded-sm border-b-4 border-yellow-200 dark:border-yellow-800 shadow-md transform rotate-1 hover:rotate-0 transition-transform duration-200 relative"
+                    style={{
+                      backgroundImage: 'linear-gradient(to bottom right, rgba(255,255,255,0.2), transparent)',
+                    }}
+                  >
+                    <p className="font-handwriting text-sm text-gray-800 dark:text-gray-200">{note.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="hourlyProduction" className="text-right font-medium">
@@ -1547,29 +1650,14 @@ export function ProductionStatus() {
       </Dialog>
       
       {/* Add Paro Dialog */}
-      <Dialog 
-        open={showAddParoDialog} 
-        onOpenChange={(open) => {
-          if (!open && currentParo && (currentParo.tiempoMinutos > 0 || currentParo.sistemaId !== "placeholder")) {
-            // If trying to close the dialog and there's unsaved data
-            setShowAddParoCloseConfirmDialog(true);
-          } else {
-            // No data to lose, close directly
-            setShowAddParoDialog(open);
-          }
-        }}
-      >
-        <DialogContent 
-          className={`sm:max-w-[600px] ${
-            currentParoType === "Mantenimiento" 
-              ? "border-blue-500 border-t-4" 
-              : currentParoType === "Calidad" 
-                ? "border-amber-500 border-t-4" 
-                : currentParoType === "Operación" 
-                  ? "border-green-500 border-t-4" 
-                  : ""
-          }`}
-        >
+      <Dialog open={showAddParoDialog} onOpenChange={(open) => {
+        if (!open && currentParo && (currentParo.tiempoMinutos > 0 || currentParo.sistemaId !== "placeholder")) {
+          setShowAddParoCloseConfirmDialog(true);
+        } else {
+          setShowAddParoDialog(open);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className={`flex items-center ${
               currentParoType === "Mantenimiento" 
@@ -1612,289 +1700,313 @@ export function ProductionStatus() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tiempoMinutos">Tiempo (minutos)</Label>
-                  <Input
-                  id="tiempoMinutos"
-                    type="number"
-                  value={currentParo?.tiempoMinutos || 0}
-                  onChange={(e) => {
-                    if (currentParo) {
-                      setCurrentParo({
-                        ...currentParo,
-                        tiempoMinutos: parseInt(e.target.value) || 0
-                      });
-                    }
-                  }}
-                  className={`${
-                    currentParoType === "Mantenimiento" 
-                      ? "focus-visible:ring-blue-500" 
-                      : currentParoType === "Calidad" 
-                        ? "focus-visible:ring-amber-500" 
-                        : currentParoType === "Operación" 
-                          ? "focus-visible:ring-green-500" 
-                          : ""
-                  }`}
-                  />
+          {/* Production Notes Section - Post-it style */}
+          {productionNotes.length > 0 && (
+            <div className="mb-4">
+              <div className="grid grid-cols-2 gap-3">
+                {productionNotes.map((note) => (
+                  <div 
+                    key={note.id}
+                    className="p-3 bg-yellow-100 dark:bg-yellow-900/50 rounded-sm border-b-4 border-yellow-200 dark:border-yellow-800 shadow-md transform rotate-1 hover:rotate-0 transition-transform duration-200 relative"
+                    style={{
+                      backgroundImage: 'linear-gradient(to bottom right, rgba(255,255,255,0.2), transparent)',
+                    }}
+                  >
+                    <p className="font-handwriting text-sm text-gray-800 dark:text-gray-200">{note.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div className="flex-1 overflow-y-auto space-y-4 py-4">
+            <div className="grid grid-cols-1 gap-4">
+              {/* Left column for paro form */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="tiempoMinutos">Tiempo (minutos)</Label>
+                      <Input
+                      id="tiempoMinutos"
+                        type="number"
+                      value={currentParo?.tiempoMinutos || 0}
+                      onChange={(e) => {
+                        if (currentParo) {
+                          setCurrentParo({
+                            ...currentParo,
+                            tiempoMinutos: parseInt(e.target.value) || 0
+                          });
+                        }
+                      }}
+                      className={`${
+                        currentParoType === "Mantenimiento" 
+                          ? "focus-visible:ring-blue-500" 
+                          : currentParoType === "Calidad" 
+                            ? "focus-visible:ring-amber-500" 
+                            : currentParoType === "Operación" 
+                              ? "focus-visible:ring-green-500" 
+                              : ""
+                      }`}
+                      />
+                    </div>
+                    
+                  {/* Remaining time display */}
+                  <div className="flex items-center justify-end">
+                    <div className="text-sm text-muted-foreground">
+                      <p>Tiempo total a asignar: {remainingDowntimeMinutes} min</p>
+                      <p>Tiempo asignado: {
+                        [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                          .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                          .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)
+                      } min</p>
+                      <p>Tiempo restante: {
+                        remainingDowntimeMinutes - 
+                        [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                          .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                          .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)
+                      } min</p>
+                    </div>
+                  </div>
                 </div>
                 
-              {/* Remaining time display */}
-              <div className="flex items-center justify-end">
-                <div className="text-sm text-muted-foreground">
-                  <p>Tiempo total a asignar: {remainingDowntimeMinutes} min</p>
-                  <p>Tiempo asignado: {
-                    [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                      .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                      .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)
-                  } min</p>
-                  <p>Tiempo restante: {
-                    remainingDowntimeMinutes - 
-                    [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                      .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                      .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)
-                  } min</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Sistema selection - for all paro types */}
-                <div>
-              <Label htmlFor="sistema">Sistema</Label>
-              <Select
-                value={currentParo?.sistemaId || "placeholder"}
-                onValueChange={(value) => {
-                  if (currentParo && value !== "placeholder") {
-                    setCurrentParo({
-                      ...currentParo,
-                      sistemaId: value,
-                      subsistemaId: "placeholder",
-                      subsubsistemaId: "placeholder"
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger className={`${
-                  currentParoType === "Mantenimiento" 
-                    ? "focus-visible:ring-blue-500 border-blue-200" 
-                    : currentParoType === "Calidad" 
-                      ? "focus-visible:ring-amber-500 border-amber-200" 
-                      : currentParoType === "Operación" 
-                        ? "focus-visible:ring-green-500 border-green-200" 
-                        : ""
-                }`}>
-                  <SelectValue placeholder="Seleccione un sistema" />
-                    </SelectTrigger>
-                    <SelectContent>
-                  <SelectItem value="placeholder">Seleccione un sistema</SelectItem>
-                  {sistemas.map((sistema) => (
-                    <SelectItem key={sistema.id} value={sistema.id}>
-                      {sistema.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-            
-            {/* Subsistema selection - only for Mantenimiento */}
-            {currentParoType === "Mantenimiento" && currentParo?.sistemaId && currentParo.sistemaId !== "placeholder" && (
-              <div>
-                <Label htmlFor="subsistema">Subsistema</Label>
-                <Select
-                  value={currentParo?.subsistemaId || "placeholder"}
-                  onValueChange={(value) => {
-                    if (currentParo && value !== "placeholder") {
-                      setCurrentParo({
-                        ...currentParo,
-                        subsistemaId: value,
-                        subsubsistemaId: "placeholder"
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="focus-visible:ring-blue-500 border-blue-200">
-                    <SelectValue placeholder="Seleccione un subsistema" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="placeholder">Seleccione un subsistema</SelectItem>
-                    {getFilteredSubsistemas(currentParo.sistemaId).map((subsistema) => (
-                      <SelectItem key={subsistema.id} value={subsistema.id}>
-                        {subsistema.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            {/* Subsubsistema selection - only for Mantenimiento */}
-            {currentParoType === "Mantenimiento" && currentParo?.subsistemaId && currentParo.subsistemaId !== "placeholder" && (
-              <div>
-                <Label htmlFor="subsubsistema">Subsubsistema</Label>
-                <Select
-                  value={currentParo?.subsubsistemaId || "placeholder"}
-                  onValueChange={(value) => {
-                    if (currentParo && value !== "placeholder") {
-                      setCurrentParo({
-                        ...currentParo,
-                        subsubsistemaId: value
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="focus-visible:ring-blue-500 border-blue-200">
-                    <SelectValue placeholder="Seleccione un subsubsistema" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="placeholder">Seleccione un subsubsistema</SelectItem>
-                    {getFilteredSubsubsistemas(currentParo.subsistemaId).map((subsubsistema) => (
-                      <SelectItem key={subsubsistema.id} value={subsubsistema.id}>
-                        {subsubsistema.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            {/* Add Paro button at the bottom of the form */}
-            <div className="flex justify-end mt-4">
-              <Button 
-                onClick={handleAddParo}
-                disabled={
-                  !currentParo || 
-                  !currentParo.tiempoMinutos || 
-                  currentParo.tiempoMinutos <= 0 || 
-                  !currentParo.sistemaId ||
-                  currentParo.sistemaId === "placeholder" ||
-                  (currentParoType === "Mantenimiento" && (!currentParo.subsistemaId || currentParo.subsistemaId === "placeholder")) ||
-                  (currentParoType === "Mantenimiento" && (!currentParo.subsubsistemaId || currentParo.subsubsistemaId === "placeholder"))
-                }
-                className={`${
-                  currentParoType === "Mantenimiento" 
-                    ? "bg-blue-600 hover:bg-blue-700" 
-                    : currentParoType === "Calidad" 
-                      ? "bg-amber-600 hover:bg-amber-700" 
-                      : currentParoType === "Operación" 
-                        ? "bg-green-600 hover:bg-green-700" 
-                        : ""
-                }`}
-              >
-                {editingParoIndex !== null ? (
-                  <>
-                    <Pencil className="mr-2 h-4 w-4" /> Actualizar Paro
-                  </>
-                ) : (
-                  <>
-                    <Plus className="mr-2 h-4 w-4" /> Agregar Paro
-                  </>
-                )}
-              </Button>
-            </div>
-            
-            {/* Paros table for the current type */}
-              <div className="mt-4">
-              <div className="flex justify-between items-center mb-2">
-                <Label className="text-base">
-                  {currentParoType === "Mantenimiento" && "Paros por Mantenimiento"}
-                  {currentParoType === "Calidad" && "Paros por Calidad"}
-                  {currentParoType === "Operación" && "Paros por Operación"}
-                </Label>
-              </div>
-              
-              {/* Render the appropriate paros table based on currentParoType */}
-              <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                {currentParoType === "Mantenimiento" && parosMantenimiento.length === 0 && (
-                  <div className="text-center py-4 text-muted-foreground">
-                    No hay paros por mantenimiento registrados
-            </div>
-                )}
-                
-                {currentParoType === "Mantenimiento" && parosMantenimiento.map((paro, index) => (
-                  <div key={index} className="flex items-center justify-between bg-blue-50 border border-blue-200 p-2 rounded-md">
+                {/* Sistema selection - for all paro types */}
                     <div>
-                      <div className="font-medium text-blue-700">Mantenimiento - {paro.tiempoMinutos} min</div>
-                      {paro.sistemaId && (
-                        <div className="text-xs text-blue-600">
-                          Sistema: {getSistemaNombre(paro.sistemaId)}
+                  <Label htmlFor="sistema">Sistema</Label>
+                  <Select
+                    value={currentParo?.sistemaId || "placeholder"}
+                    onValueChange={(value) => {
+                      if (currentParo && value !== "placeholder") {
+                        setCurrentParo({
+                          ...currentParo,
+                          sistemaId: value,
+                          subsistemaId: "placeholder",
+                          subsubsistemaId: "placeholder"
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className={`${
+                      currentParoType === "Mantenimiento" 
+                        ? "focus-visible:ring-blue-500 border-blue-200" 
+                        : currentParoType === "Calidad" 
+                          ? "focus-visible:ring-amber-500 border-amber-200" 
+                          : currentParoType === "Operación" 
+                            ? "focus-visible:ring-green-500 border-green-200" 
+                            : ""
+                    }`}>
+                      <SelectValue placeholder="Seleccione un sistema" />
+                        </SelectTrigger>
+                        <SelectContent>
+                      <SelectItem value="placeholder">Seleccione un sistema</SelectItem>
+                      {sistemas.map((sistema) => (
+                        <SelectItem key={sistema.id} value={sistema.id}>
+                          {sistema.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                
+                {/* Subsistema selection - only for Mantenimiento */}
+                {currentParoType === "Mantenimiento" && currentParo?.sistemaId && currentParo.sistemaId !== "placeholder" && (
+                  <div>
+                    <Label htmlFor="subsistema">Subsistema</Label>
+                    <Select
+                      value={currentParo?.subsistemaId || "placeholder"}
+                      onValueChange={(value) => {
+                        if (currentParo && value !== "placeholder") {
+                          setCurrentParo({
+                            ...currentParo,
+                            subsistemaId: value,
+                            subsubsistemaId: "placeholder"
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="focus-visible:ring-blue-500 border-blue-200">
+                        <SelectValue placeholder="Seleccione un subsistema" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="placeholder">Seleccione un subsistema</SelectItem>
+                        {getFilteredSubsistemas(currentParo.sistemaId).map((subsistema) => (
+                          <SelectItem key={subsistema.id} value={subsistema.id}>
+                            {subsistema.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Subsubsistema selection - only for Mantenimiento */}
+                {currentParoType === "Mantenimiento" && currentParo?.subsistemaId && currentParo.subsistemaId !== "placeholder" && (
+                  <div>
+                    <Label htmlFor="subsubsistema">Subsubsistema</Label>
+                    <Select
+                      value={currentParo?.subsubsistemaId || "placeholder"}
+                      onValueChange={(value) => {
+                        if (currentParo && value !== "placeholder") {
+                          setCurrentParo({
+                            ...currentParo,
+                            subsubsistemaId: value
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="focus-visible:ring-blue-500 border-blue-200">
+                        <SelectValue placeholder="Seleccione un subsubsistema" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="placeholder">Seleccione un subsubsistema</SelectItem>
+                        {getFilteredSubsubsistemas(currentParo.subsistemaId).map((subsubsistema) => (
+                          <SelectItem key={subsubsistema.id} value={subsubsistema.id}>
+                            {subsubsistema.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Add Paro button at the bottom of the form */}
+                <div className="flex justify-end mt-4">
+                  <Button 
+                    onClick={handleAddParo}
+                    disabled={
+                      !currentParo || 
+                      !currentParo.tiempoMinutos || 
+                      currentParo.tiempoMinutos <= 0 || 
+                      !currentParo.sistemaId ||
+                      currentParo.sistemaId === "placeholder" ||
+                      (currentParoType === "Mantenimiento" && (!currentParo.subsistemaId || currentParo.subsistemaId === "placeholder")) ||
+                      (currentParoType === "Mantenimiento" && (!currentParo.subsubsistemaId || currentParo.subsubsistemaId === "placeholder"))
+                    }
+                    className={`${
+                      currentParoType === "Mantenimiento" 
+                        ? "bg-blue-600 hover:bg-blue-700" 
+                        : currentParoType === "Calidad" 
+                          ? "bg-amber-600 hover:bg-amber-700" 
+                          : currentParoType === "Operación" 
+                            ? "bg-green-600 hover:bg-green-700" 
+                            : ""
+                    }`}
+                  >
+                    {editingParoIndex !== null ? (
+                      <>
+                        <Pencil className="mr-2 h-4 w-4" /> Actualizar Paro
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 h-4 w-4" /> Agregar Paro
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                {/* Paros table for the current type */}
+                  <div className="mt-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <Label className="text-base">
+                      {currentParoType === "Mantenimiento" && "Paros por Mantenimiento"}
+                      {currentParoType === "Calidad" && "Paros por Calidad"}
+                      {currentParoType === "Operación" && "Paros por Operación"}
+                    </Label>
+                  </div>
+                  
+                  {/* Render the appropriate paros table based on currentParoType */}
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                    {currentParoType === "Mantenimiento" && parosMantenimiento.length === 0 && (
+                      <div className="text-center py-4 text-muted-foreground">
+                        No hay paros por mantenimiento registrados
+              </div>
+                    )}
+                    
+                    {currentParoType === "Mantenimiento" && parosMantenimiento.map((paro, index) => (
+                      <div key={index} className="flex items-center justify-between bg-blue-50 border border-blue-200 p-2 rounded-md">
+                        <div>
+                          <div className="font-medium text-blue-700">Mantenimiento - {paro.tiempoMinutos} min</div>
+                          {paro.sistemaId && (
+                            <div className="text-xs text-blue-600">
+                              Sistema: {getSistemaNombre(paro.sistemaId)}
           </div>
-                      )}
-                      {paro.subsistemaId && (
-                        <div className="text-xs text-blue-600">
-                          Subsistema: {getSubsistemaNombre(paro.subsistemaId)}
+                          )}
+                          {paro.subsistemaId && (
+                            <div className="text-xs text-blue-600">
+                              Subsistema: {getSubsistemaNombre(paro.subsistemaId)}
+                            </div>
+                          )}
+                          {paro.subsubsistemaId && (
+                            <div className="text-xs text-blue-600">
+                              Subsubsistema: {getSubsubsistemaNombre(paro.subsubsistemaId)}
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {paro.subsubsistemaId && (
-                        <div className="text-xs text-blue-600">
-                          Subsubsistema: {getSubsubsistemaNombre(paro.subsubsistemaId)}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 text-destructive hover:text-destructive" 
+                          onClick={() => handleDeleteParo(index, "Mantenimiento")}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    {currentParoType === "Calidad" && parosCalidad.length === 0 && (
+                      <div className="text-center py-4 text-muted-foreground">
+                        No hay paros por calidad registrados
+                      </div>
+                    )}
+                    
+                    {currentParoType === "Calidad" && parosCalidad.map((paro, index) => (
+                      <div key={index} className="flex items-center justify-between bg-amber-50 border border-amber-200 p-2 rounded-md">
+                        <div>
+                          <div className="font-medium text-amber-700">Calidad - {paro.tiempoMinutos} min</div>
+                          {paro.sistemaId && (
+                            <div className="text-xs text-amber-600">
+                              Sistema: {getSistemaNombre(paro.sistemaId)}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6 text-destructive hover:text-destructive" 
-                      onClick={() => handleDeleteParo(index, "Mantenimiento")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
-                
-                {currentParoType === "Calidad" && parosCalidad.length === 0 && (
-                  <div className="text-center py-4 text-muted-foreground">
-                    No hay paros por calidad registrados
-                  </div>
-                )}
-                
-                {currentParoType === "Calidad" && parosCalidad.map((paro, index) => (
-                  <div key={index} className="flex items-center justify-between bg-amber-50 border border-amber-200 p-2 rounded-md">
-                    <div>
-                      <div className="font-medium text-amber-700">Calidad - {paro.tiempoMinutos} min</div>
-                      {paro.sistemaId && (
-                        <div className="text-xs text-amber-600">
-                          Sistema: {getSistemaNombre(paro.sistemaId)}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 text-destructive hover:text-destructive" 
+                          onClick={() => handleDeleteParo(index, "Calidad")}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    {currentParoType === "Operación" && parosOperacion.length === 0 && (
+                      <div className="text-center py-4 text-muted-foreground">
+                        No hay paros por operación registrados
+                      </div>
+                    )}
+                    
+                    {currentParoType === "Operación" && parosOperacion.map((paro, index) => (
+                      <div key={index} className="flex items-center justify-between bg-green-50 border border-green-200 p-2 rounded-md">
+                        <div>
+                          <div className="font-medium text-green-700">Operación - {paro.tiempoMinutos} min</div>
+                          {paro.sistemaId && (
+                            <div className="text-xs text-green-600">
+                              Sistema: {getSistemaNombre(paro.sistemaId)}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6 text-destructive hover:text-destructive" 
-                      onClick={() => handleDeleteParo(index, "Calidad")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 text-destructive hover:text-destructive" 
+                          onClick={() => handleDeleteParo(index, "Operación")}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                
-                {currentParoType === "Operación" && parosOperacion.length === 0 && (
-                  <div className="text-center py-4 text-muted-foreground">
-                    No hay paros por operación registrados
-                  </div>
-                )}
-                
-                {currentParoType === "Operación" && parosOperacion.map((paro, index) => (
-                  <div key={index} className="flex items-center justify-between bg-green-50 border border-green-200 p-2 rounded-md">
-                    <div>
-                      <div className="font-medium text-green-700">Operación - {paro.tiempoMinutos} min</div>
-                      {paro.sistemaId && (
-                        <div className="text-xs text-green-600">
-                          Sistema: {getSistemaNombre(paro.sistemaId)}
-                        </div>
-                      )}
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6 text-destructive hover:text-destructive" 
-                      onClick={() => handleDeleteParo(index, "Operación")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
+                </div>
               </div>
             </div>
           </div>
@@ -2002,14 +2114,33 @@ export function ProductionStatus() {
       {/* Summary Dialog */}
       <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-2">
+          <DialogHeader>
             <DialogTitle className="text-xl">Resumen Final de Producción</DialogTitle>
             <DialogDescription>
               Revise la información de producción y los paros registrados antes de guardar.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto pr-2 space-y-6 py-4">
+          {/* Production Notes Section - Post-it style */}
+          {productionNotes.length > 0 && (
+            <div className="mb-4">
+              <div className="grid grid-cols-2 gap-3">
+                {productionNotes.map((note) => (
+                  <div 
+                    key={note.id}
+                    className="p-3 bg-yellow-100 dark:bg-yellow-900/50 rounded-sm border-b-4 border-yellow-200 dark:border-yellow-800 shadow-md transform rotate-1 hover:rotate-0 transition-transform duration-200 relative"
+                    style={{
+                      backgroundImage: 'linear-gradient(to bottom right, rgba(255,255,255,0.2), transparent)',
+                    }}
+                  >
+                    <p className="font-handwriting text-sm text-gray-800 dark:text-gray-200">{note.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div className="flex-1 overflow-y-auto space-y-6 py-4">
             {/* Production Info Card */}
             <div className="bg-card rounded-lg border shadow-sm p-4">
               <h3 className="text-lg font-semibold mb-3">Información de Producción</h3>
@@ -2031,8 +2162,8 @@ export function ProductionStatus() {
                   <p className="font-medium text-lg">{remainingDowntimeMinutes} minutos</p>
                 </div>
               </div>
-                </div>
-                
+            </div>
+
             {/* Progress indicator */}
             <div className="bg-card rounded-lg border shadow-sm p-4">
               <h3 className="text-lg font-semibold mb-3">Progreso de Registro</h3>
@@ -2055,11 +2186,10 @@ export function ProductionStatus() {
                 </div>
               </div>
             </div>
-            
+
             {/* Paros Summary */}
             <div className="bg-card rounded-lg border shadow-sm p-4">
               <h3 className="text-lg font-semibold mb-3">Resumen de Paros</h3>
-              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Mantenimiento paros */}
                 <div className="space-y-2 bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md">
@@ -2077,30 +2207,6 @@ export function ProductionStatus() {
                         <div key={index} className="bg-white dark:bg-slate-800 p-2 rounded-md shadow-sm border border-blue-100 dark:border-blue-900">
                           <div className="flex justify-between items-start">
                             <div className="font-medium">{paro.tiempoMinutos} minutos</div>
-                            <div className="flex space-x-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6" 
-                                onClick={() => {
-                                  setCurrentParoType("Mantenimiento");
-                                  setCurrentParo({...paro});
-                                  setEditingParoIndex(index);
-                                  setShowSummaryDialog(false);
-                                  setShowAddParoDialog(true);
-                                }}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6 text-destructive hover:text-destructive" 
-                                onClick={() => handleDeleteParo(index, "Mantenimiento")}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
                           </div>
                           {paro.sistemaId && paro.sistemaId !== "placeholder" && (
                             <div className="text-xs text-muted-foreground">
@@ -2119,10 +2225,10 @@ export function ProductionStatus() {
                           )}
                         </div>
                       ))}
-                </div>
+                    </div>
                   )}
-              </div>
-              
+                </div>
+
                 {/* Calidad paros */}
                 <div className="space-y-2 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-md">
                   <h4 className="font-medium flex items-center text-amber-700 dark:text-amber-400">
@@ -2131,38 +2237,14 @@ export function ProductionStatus() {
                   </h4>
                   {parosCalidad.length === 0 ? (
                     <div className="text-center py-2 text-muted-foreground text-sm">
-                      No hay paros por calidad registrados
-              </div>
+                      No hay paros registrados
+                    </div>
                   ) : (
                     <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
                       {parosCalidad.map((paro, index) => (
                         <div key={index} className="bg-white dark:bg-slate-800 p-2 rounded-md shadow-sm border border-amber-100 dark:border-amber-900">
                           <div className="flex justify-between items-start">
                             <div className="font-medium">{paro.tiempoMinutos} minutos</div>
-                            <div className="flex space-x-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6" 
-                                onClick={() => {
-                                  setCurrentParoType("Calidad");
-                                  setCurrentParo({...paro});
-                                  setEditingParoIndex(index);
-                                  setShowSummaryDialog(false);
-                                  setShowAddParoDialog(true);
-                                }}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6 text-destructive hover:text-destructive" 
-                                onClick={() => handleDeleteParo(index, "Calidad")}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
                           </div>
                           {paro.sistemaId && paro.sistemaId !== "placeholder" && (
                             <div className="text-xs text-muted-foreground">
@@ -2173,8 +2255,8 @@ export function ProductionStatus() {
                       ))}
                     </div>
                   )}
-            </div>
-            
+                </div>
+
                 {/* Operación paros */}
                 <div className="space-y-2 bg-green-50 dark:bg-green-950/30 p-3 rounded-md">
                   <h4 className="font-medium flex items-center text-green-700 dark:text-green-400">
@@ -2191,30 +2273,6 @@ export function ProductionStatus() {
                         <div key={index} className="bg-white dark:bg-slate-800 p-2 rounded-md shadow-sm border border-green-100 dark:border-green-900">
                           <div className="flex justify-between items-start">
                             <div className="font-medium">{paro.tiempoMinutos} minutos</div>
-                            <div className="flex space-x-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6" 
-                                onClick={() => {
-                                  setCurrentParoType("Operación");
-                                  setCurrentParo({...paro});
-                                  setEditingParoIndex(index);
-                                  setShowSummaryDialog(false);
-                                  setShowAddParoDialog(true);
-                                }}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6 text-destructive hover:text-destructive" 
-                                onClick={() => handleDeleteParo(index, "Operación")}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
                           </div>
                           {paro.sistemaId && paro.sistemaId !== "placeholder" && (
                             <div className="text-xs text-muted-foreground">
@@ -2227,194 +2285,60 @@ export function ProductionStatus() {
                   )}
                 </div>
               </div>
-          </div>
-          
-            {/* Time Summary */}
-            <div className="bg-card rounded-lg border shadow-sm p-4">
-              <div className="flex justify-between items-center">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Tiempo total asignado:</p>
-                  <p className="font-medium text-lg">
-                    {[...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                      .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                      .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos
-                  </p>
-                </div>
-                
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Tiempo restante sin asignar:</p>
-                  <p className={`font-medium text-lg ${
-                    remainingDowntimeMinutes - 
-                    [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                      .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                      .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 
-                      ? "text-amber-500" 
-                      : "text-green-500"
-                  }`}>
-                    {remainingDowntimeMinutes - 
-                     [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                       .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                       .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos
-                    {remainingDowntimeMinutes - 
-                     [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                       .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                       .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 && (
-                      <span className="ml-2 text-amber-500 text-sm">
-                        (Debe asignar todo el tiempo antes de guardar)
-                      </span>
-                    )}
-                  </p>
+
+              {/* Time Summary */}
+              <div className="mt-4 pt-4 border-t">
+                <div className="flex justify-between items-center">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Tiempo total asignado:</p>
+                    <p className="font-medium text-lg">
+                      {[...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                        .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                        .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Tiempo restante sin asignar:</p>
+                    <p className={`font-medium text-lg ${
+                      remainingDowntimeMinutes - 
+                      [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                        .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                        .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 
+                        ? "text-amber-500" 
+                        : "text-green-500"
+                    }`}>
+                      {remainingDowntimeMinutes - 
+                       [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                         .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                         .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos
+                      {remainingDowntimeMinutes - 
+                       [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                         .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                         .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 && (
+                        <span className="ml-2 text-amber-500 text-sm">
+                          (Debe asignar todo el tiempo antes de guardar)
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
-              
-              {/* Buttons to assign remaining time */}
-              {remainingDowntimeMinutes - 
-               [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                 .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                 .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 && (
-                <div className="mt-4 border-t pt-4">
-                  <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start">
-                    <AlertTriangle className="h-5 w-5 text-amber-500 mr-2 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-amber-800">Tiempo sin asignar</p>
-                      <p className="text-sm text-amber-700">
-                        Debes asignar {remainingDowntimeMinutes - 
-                        [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                          .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                          .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos para continuar.
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm font-medium mb-3">Asignar tiempo restante a:</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="border-blue-200 bg-blue-50 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/30 dark:hover:bg-blue-900/50"
-                      onClick={() => {
-                        const remainingTime = remainingDowntimeMinutes - 
-                          [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                            .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                            .reduce((sum, paro) => sum + paro.tiempoMinutos, 0);
-                        
-                        setCurrentParoType("Mantenimiento");
-                        const mantenimientoTipo = stopTypes.find(tipo => tipo.nombre === "Mantenimiento");
-                        if (mantenimientoTipo) {
-                          setCurrentParo({
-                            tiempoMinutos: remainingTime,
-                            tipoParoId: mantenimientoTipo.id,
-                            tipoParoNombre: mantenimientoTipo.nombre,
-                            sistemaId: "placeholder",
-                            subsistemaId: "placeholder",
-                            subsubsistemaId: "placeholder",
-                            descripcion: ""
-                          });
-                        }
-                        setShowSummaryDialog(false);
-                        setShowAddParoDialog(true);
-                      }}
-                    >
-                      Mantenimiento
-            </Button>
-                    
-            <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="border-amber-200 bg-amber-50 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/30 dark:hover:bg-amber-900/50"
-                      onClick={() => {
-                        const remainingTime = remainingDowntimeMinutes - 
-                          [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                            .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                            .reduce((sum, paro) => sum + paro.tiempoMinutos, 0);
-                        
-                        setCurrentParoType("Calidad");
-                        const calidadTipo = stopTypes.find(tipo => tipo.nombre === "Calidad");
-                        if (calidadTipo) {
-                          setCurrentParo({
-                            tiempoMinutos: remainingTime,
-                            tipoParoId: calidadTipo.id,
-                            tipoParoNombre: calidadTipo.nombre,
-                            sistemaId: "placeholder",
-                            descripcion: ""
-                          });
-                        }
-                        setShowSummaryDialog(false);
-                        setShowAddParoDialog(true);
-                      }}
-                    >
-                      Calidad
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="border-green-200 bg-green-50 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/30 dark:hover:bg-green-900/50"
-                      onClick={() => {
-                        const remainingTime = remainingDowntimeMinutes - 
-                          [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                            .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                            .reduce((sum, paro) => sum + paro.tiempoMinutos, 0);
-                        
-                        setCurrentParoType("Operación");
-                        const operacionTipo = stopTypes.find(tipo => tipo.nombre === "Operación");
-                        if (operacionTipo) {
-                          setCurrentParo({
-                            tiempoMinutos: remainingTime,
-                            tipoParoId: operacionTipo.id,
-                            tipoParoNombre: operacionTipo.nombre,
-                            sistemaId: "placeholder",
-                            descripcion: ""
-                          });
-                        }
-                        setShowSummaryDialog(false);
-                        setShowAddParoDialog(true);
-                      }}
-                    >
-                      Operación
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
-          
+
           <DialogFooter className="flex justify-between pt-4 border-t mt-2">
             <Button 
               variant="outline" 
               onClick={() => {
                 setShowSummaryDialog(false);
-                
-                // Go back to the appropriate step based on which paros are missing
-                if (parosMantenimiento.length === 0) {
-                  setCurrentParoType("Mantenimiento");
-                } else if (parosCalidad.length === 0) {
-                  setCurrentParoType("Calidad");
-                } else if (parosOperacion.length === 0) {
-                  setCurrentParoType("Operación");
-                }
-                
                 setShowAddParoDialog(true);
               }}
-              className="border-gray-300 hover:bg-gray-50 transition-all"
             >
-              Volver
+              <ArrowLeft className="mr-2 h-4 w-4" /> Volver a Paros
             </Button>
             <Button 
-              onClick={async () => {
-                // For hourly updates, use handleHourlyUpdate
-                if (!showFinishDialog) {
-                  await handleHourlyUpdate();
-                  // Reset paros after successful update
-                  setParosMantenimiento([]);
-                  setParosCalidad([]);
-                  setParosOperacion([]);
-                  setShowSummaryDialog(false);
-                  setShowHourlyUpdate(false);
-                } else {
-                  // For finishing production, use completeFinishProduction
-                  await completeFinishProduction();
-                }
-              }}
+              onClick={completeFinishProduction}
               disabled={
                 isUpdating || 
                 (remainingDowntimeMinutes - 
@@ -2422,11 +2346,7 @@ export function ProductionStatus() {
                   .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
                   .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0)
               }
-              className={`${
-                showFinishDialog 
-                  ? "bg-success hover:bg-success-dark" 
-                  : "bg-primary hover:bg-primary/90"
-              } text-white`}
+              className="bg-primary hover:bg-primary/90"
             >
               {isUpdating ? (
                 <>
@@ -2434,7 +2354,9 @@ export function ProductionStatus() {
                   Guardando...
                 </>
               ) : (
-                showFinishDialog ? "Finalizar Producción" : "Guardar Actualización"
+                <>
+                  Guardar y Finalizar <ArrowRight className="ml-2 h-4 w-4" />
+                </>
               )}
             </Button>
           </DialogFooter>
@@ -2555,6 +2477,137 @@ export function ProductionStatus() {
           )}
         </div>
       </div>
+
+      {/* Production Notes Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-primary" />
+            Notas de Producción
+          </CardTitle>
+          <CardDescription>
+            Agregue notas o recordatorios importantes durante la producción (máximo 6)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Note Input */}
+            <div className="flex gap-2">
+              <Input
+                value={currentNote}
+                onChange={(e) => setCurrentNote(e.target.value)}
+                placeholder="Escriba una nota..."
+                className="flex-1"
+                maxLength={200}
+              />
+              <Button 
+                onClick={editingNoteId ? handleUpdateNote : handleAddNote}
+                disabled={!currentNote.trim() || (productionNotes.length >= 6 && !editingNoteId)}
+                className="whitespace-nowrap"
+              >
+                {editingNoteId ? (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Actualizar
+                  </>
+                ) : (
+                  <>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Agregar
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Notes List */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {productionNotes.length === 0 ? (
+                <div className="col-span-full text-center py-4 text-muted-foreground">
+                  No hay notas registradas
+                </div>
+              ) : (
+                productionNotes.map((note, index) => (
+                  <div 
+                    key={note.id}
+                    className={`p-4 bg-yellow-100 dark:bg-yellow-900/50 rounded-sm border-b-4 border-yellow-200 dark:border-yellow-800 shadow-md relative group transform ${
+                      index % 2 === 0 ? 'rotate-1' : '-rotate-1'
+                    } hover:rotate-0 transition-all duration-200`}
+                    style={{
+                      backgroundImage: 'linear-gradient(to bottom right, rgba(255,255,255,0.2), transparent)',
+                    }}
+                  >
+                    {editingNoteId === note.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={inlineEditNote}
+                          onChange={(e) => setInlineEditNote(e.target.value)}
+                          className="w-full bg-transparent border-none focus:ring-0 font-handwriting text-sm text-gray-800 dark:text-gray-200 resize-none min-h-[80px]"
+                          maxLength={200}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleInlineUpdateNote(note.id);
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingNoteId(null);
+                              setInlineEditNote("");
+                            }
+                          }}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingNoteId(null);
+                              setInlineEditNote("");
+                            }}
+                            className="h-7 px-2 text-xs hover:bg-red-100"
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleInlineUpdateNote(note.id)}
+                            className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            Guardar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-handwriting text-sm text-gray-800 dark:text-gray-200 mb-2">{note.content}</p>
+                        
+                        {/* Action buttons - only show on hover */}
+                        <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            onClick={() => handleEditNote(note.id)}
+                            className="h-7 w-7 bg-white shadow-md hover:bg-gray-100"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            onClick={() => handleDeleteNote(note.id)}
+                            className="h-7 w-7 bg-white shadow-md hover:bg-red-100"
+                          >
+                            <Trash2 className="h-3 w-3 text-red-500" />
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 
