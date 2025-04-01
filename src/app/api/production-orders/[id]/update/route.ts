@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
-import { prisma } from "@/lib/db";
+import { authOptions } from "@/lib/auth/auth-options";
+
+const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
@@ -11,77 +13,57 @@ export async function POST(
     const session = await getServerSession(authOptions);
 
     if (!session) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return NextResponse.json(
+        { message: "No autorizado" },
+        { status: 401 }
+      );
     }
 
-    const body = await request.json();
-    const { cajasProducidas } = body;
+    const orderId = params.id;
+    const { cajasProducidas } = await request.json();
 
-    if (typeof cajasProducidas !== "number" || cajasProducidas < 0) {
-      return new NextResponse("Invalid cajasProducidas value", { status: 400 });
+    if (!orderId) {
+      return NextResponse.json(
+        { message: "ID de orden no proporcionado" },
+        { status: 400 }
+      );
     }
 
-    // Check if the order exists
+    // First get the current order details
     const order = await prisma.produccion.findUnique({
-      where: {
-        id: params.id,
-      },
+      where: { id: orderId },
     });
 
     if (!order) {
-      return new NextResponse("Order not found", { status: 404 });
+      return NextResponse.json(
+        { message: "Orden de producción no encontrada" },
+        { status: 404 }
+      );
     }
 
-    // Determine the order status
-    let estado = "pendiente";
-    if (cajasProducidas >= order.cajasPlanificadas) {
-      estado = "completada";
-    } else if (cajasProducidas > 0) {
-      estado = "en_progreso";
-    }
-
-    // Update the order with the new cajasProducidas value and lastUpdateTime
+    // Update the order with the new production count
+    // Always keep the status as "en_progreso" for hourly updates
     const updatedOrder = await prisma.produccion.update({
-      where: {
-        id: params.id,
-      },
+      where: { id: orderId },
       data: {
-        cajasProducidas,
-        lastUpdateTime: new Date(),
-        estado
-      },
-      include: {
-        lineaProduccion: true,
-        producto: {
-          include: {
-            lineasProduccion: {
-              where: {
-                lineaProduccionId: { not: undefined },
-              },
-            },
-          },
-        },
+        cajasProducidas: cajasProducidas,
+        estado: "en_progreso",
+        lastUpdateTime: new Date()
       },
     });
 
-    // Find the velocidadProduccion for this product on this production line
-    const productoEnLinea = updatedOrder.producto.lineasProduccion.find(
-      (pl: any) => pl.lineaProduccionId === updatedOrder.lineaProduccionId
+    return NextResponse.json(
+      { 
+        message: "Producción actualizada correctamente",
+        order: updatedOrder 
+      },
+      { status: 200 }
     );
-
-    // Add the velocidadProduccion to the product
-    const producto = {
-      ...updatedOrder.producto,
-      velocidadProduccion: productoEnLinea?.velocidadProduccion || null,
-    };
-
-    // Return the updated order with the enhanced product
-    return NextResponse.json({
-      ...updatedOrder,
-      producto
-    });
   } catch (error) {
-    console.error("[ORDER_UPDATE_POST]", error);
-    return new NextResponse("Internal error", { status: 500 });
+    console.error("Error updating production order:", error);
+    return NextResponse.json(
+      { message: "Error al actualizar la producción" },
+      { status: 500 }
+    );
   }
 } 

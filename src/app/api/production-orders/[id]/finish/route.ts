@@ -20,7 +20,7 @@ export async function POST(
     }
 
     const orderId = params.id;
-    const { hourlyProduction, paros } = await request.json();
+    const { cajasProducidas, paros, isFinalizingProduction = false } = await request.json();
 
     if (!orderId) {
       return NextResponse.json(
@@ -44,27 +44,18 @@ export async function POST(
       );
     }
 
-    // Calculate the new total production count
-    const newCajasProducidas = order.cajasProducidas + (parseInt(hourlyProduction) || 0);
-    
-    // Update just the cajasProducidas field to fix the error
+    // Update the order with the new total production
+    // Only mark as completed if explicitly finalizing production
     const updatedOrder = await prisma.produccion.update({
       where: { id: orderId },
       data: {
-        cajasProducidas: newCajasProducidas
+        cajasProducidas: cajasProducidas,
+        estado: isFinalizingProduction ? "completada" : "en_progreso",
+        lastUpdateTime: new Date()
       },
     });
 
-    // Separately update the estado field to avoid type issues
-    await prisma.produccion.update({
-      where: { id: orderId },
-      data: {
-        // @ts-ignore - We know estado exists in the schema
-        estado: "completada"
-      },
-    });
-
-    // Register all paros
+    // Register all paros if they exist
     if (paros && paros.length > 0) {
       for (const paro of paros) {
         await prisma.paro.create({
@@ -73,9 +64,8 @@ export async function POST(
             tiempoMinutos: paro.tiempoMinutos,
             produccionId: orderId,
             lineaProduccionId: order.lineaProduccion.id,
-            // The Paro model doesn't have a sistemaId field, only subsistemaId and subsubsistemaId
-            subsistemaId: paro.subsistemaId,
-            subsubsistemaId: paro.subsubsistemaId,
+            subsistemaId: paro.subsistemaId === "placeholder" ? null : paro.subsistemaId,
+            subsubsistemaId: paro.subsubsistemaId === "placeholder" ? null : paro.subsubsistemaId,
             descripcion: paro.descripcion || "",
           },
         });
@@ -83,7 +73,10 @@ export async function POST(
     }
 
     return NextResponse.json(
-      { message: "Producción finalizada correctamente", order: updatedOrder },
+      { 
+        message: isFinalizingProduction ? "Producción finalizada correctamente" : "Producción actualizada correctamente", 
+        order: updatedOrder 
+      },
       { status: 200 }
     );
   } catch (error) {

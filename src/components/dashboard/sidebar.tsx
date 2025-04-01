@@ -188,38 +188,6 @@ export function Sidebar() {
                 </TooltipProvider>
               );
             })}
-
-            {(session?.user?.role === "MASTER_ADMIN" || session?.user?.role === "MANAGER") && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href="/users"
-                      className={cn(
-                        "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                        pathname === "/users"
-                          ? "bg-primary/10 text-primary border-l-4 border-primary"
-                          : "text-black hover:bg-gray-100 hover:text-primary border-l-4 border-transparent",
-                        !sidebarOpen && "justify-center px-2"
-                      )}
-                      onClick={() => {
-                        // Close sidebar on mobile when a link is clicked
-                        if (window.innerWidth < 768) {
-                          closeSidebar();
-                        }
-                      }}
-                      aria-current={pathname === "/users" ? "page" : undefined}
-                    >
-                      <Users className={cn("h-5 w-5", pathname === "/users" ? "text-primary" : "text-black", sidebarOpen && "mr-3")} />
-                      {sidebarOpen && <span>Usuarios</span>}
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="bg-white text-black border border-gray-200">
-                    <p>Administrar usuarios del sistema</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
 
           <div className="mt-5 px-4 space-y-1">

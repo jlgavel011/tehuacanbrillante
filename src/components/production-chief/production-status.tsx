@@ -540,51 +540,36 @@ export function ProductionStatus() {
       if (!response.ok) {
         throw new Error("Error al actualizar la producción");
       }
+
+      const data = await response.json();
       
       // Update total cajas
       setTotalCajasProducidas(newCajasProducidas);
       
-      // Get the updated order with lastUpdateTime from API
-      const updatedOrder = await response.json();
+      // Reset hourly production input
+      setHourlyProduction("");
       
-      // Use lastUpdateTime from API response
-      if (updatedOrder.lastUpdateTime) {
-        const apiLastUpdateTime = new Date(updatedOrder.lastUpdateTime);
-        console.log("Using lastUpdateTime from API response:", apiLastUpdateTime);
-        setLastUpdateTime(apiLastUpdateTime);
-        
-        // Store in localStorage
-        storeLastUpdateTime(order.id, apiLastUpdateTime);
-        
-        // Set next update time to 1 hour from the API lastUpdateTime
-        const nextUpdate = new Date(apiLastUpdateTime);
-        nextUpdate.setHours(nextUpdate.getHours() + 1);
-        setNextUpdateTime(nextUpdate);
-      } else {
-        // Fallback if API doesn't return lastUpdateTime (should not happen after our updates)
-        console.log("No lastUpdateTime in API response, using current time");
-        const now = new Date();
-        setLastUpdateTime(now);
-        
-        // Store in localStorage
-        storeLastUpdateTime(order.id, now);
-        
-        // Set next update time to 1 hour from now
-        const nextUpdate = new Date(now);
-        nextUpdate.setHours(nextUpdate.getHours() + 1);
-        setNextUpdateTime(nextUpdate);
-      }
+      // Show success message
+      toast.success("Producción actualizada correctamente");
+      
+      // Update the lastUpdateTime
+      const now = new Date();
+      setLastUpdateTime(now);
+      storeLastUpdateTime(order.id, now);
+      
+      // Set next update time to 1 hour from now
+      const nextUpdate = new Date(now);
+      nextUpdate.setHours(nextUpdate.getHours() + 1);
+      setNextUpdateTime(nextUpdate);
       
       // Reset countdown warning
       setShowCountdownWarning(false);
       
-      // Refresh the order data to get all updated fields
-      await fetchOrder();
-      setShowHourlyUpdate(false);
-      toast.success("Producción actualizada correctamente");
-    } catch (err) {
-      console.error("Error updating production:", err);
-      toast.error(err instanceof Error ? err.message : "Error al actualizar la producción");
+      // Do not close the dialog here, let the user continue with paros registration
+      
+    } catch (error) {
+      console.error("Error updating production:", error);
+      toast.error("Error al actualizar la producción");
     } finally {
       setIsUpdating(false);
     }
@@ -646,19 +631,21 @@ export function ProductionStatus() {
       
       console.log("Sending production data:", {
         cajasProducidas: totalCajasProducidas + parseInt(finalHourlyProduction),
-        paros: allParos
+        paros: allParos,
+        isFinalizingProduction: true
       });
 
       const response = await fetch(`/api/production-orders/${order.id}/finish`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           cajasProducidas: totalCajasProducidas + parseInt(finalHourlyProduction),
-          paros: allParos
-          }),
-        });
+          paros: allParos,
+          isFinalizingProduction: true
+        }),
+      });
         
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
@@ -2013,30 +2000,7 @@ export function ProductionStatus() {
       </Dialog>
       
       {/* Summary Dialog */}
-      <Dialog 
-        open={showSummaryDialog} 
-        onOpenChange={(open) => {
-          if (!open) {
-            // If trying to close the dialog
-            const hasUnassignedTime = remainingDowntimeMinutes - 
-              [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0;
-            
-            const hasParos = parosMantenimiento.length > 0 || 
-                            parosCalidad.length > 0 || 
-                            parosOperacion.length > 0;
-            
-            if (hasParos || hasUnassignedTime) {
-              // Show confirmation dialog
-              setShowCloseConfirmDialog(true);
-            } else {
-              // No data to lose, close directly
-              setShowSummaryDialog(false);
-            }
-          }
-        }}
-      >
+      <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="pb-2">
             <DialogTitle className="text-xl">Resumen Final de Producción</DialogTitle>
@@ -2436,7 +2400,21 @@ export function ProductionStatus() {
               Volver
             </Button>
             <Button 
-              onClick={completeFinishProduction}
+              onClick={async () => {
+                // For hourly updates, use handleHourlyUpdate
+                if (!showFinishDialog) {
+                  await handleHourlyUpdate();
+                  // Reset paros after successful update
+                  setParosMantenimiento([]);
+                  setParosCalidad([]);
+                  setParosOperacion([]);
+                  setShowSummaryDialog(false);
+                  setShowHourlyUpdate(false);
+                } else {
+                  // For finishing production, use completeFinishProduction
+                  await completeFinishProduction();
+                }
+              }}
               disabled={
                 isUpdating || 
                 (remainingDowntimeMinutes - 
@@ -2444,14 +2422,11 @@ export function ProductionStatus() {
                   .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
                   .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0)
               }
-              className={
-                remainingDowntimeMinutes - 
-                [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                  .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                  .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 
-                  ? "relative group" 
-                  : ""
-              }
+              className={`${
+                showFinishDialog 
+                  ? "bg-success hover:bg-success-dark" 
+                  : "bg-primary hover:bg-primary/90"
+              } text-white`}
             >
               {isUpdating ? (
                 <>
@@ -2459,15 +2434,7 @@ export function ProductionStatus() {
                   Guardando...
                 </>
               ) : (
-                "Guardar Producción"
-              )}
-              {remainingDowntimeMinutes - 
-                [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                  .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                  .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 && (
-                <span className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-max bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                  Debes asignar todo el tiempo de paros antes de guardar
-                </span>
+                showFinishDialog ? "Finalizar Producción" : "Guardar Actualización"
               )}
             </Button>
           </DialogFooter>
