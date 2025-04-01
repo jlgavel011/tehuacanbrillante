@@ -33,6 +33,7 @@ type ProductionOrder = {
     id: string;
     nombre: string;
     velocidadProduccion?: number;
+    productoId?: string;
   };
   estado?: "pendiente" | "en_progreso" | "completada";
 };
@@ -95,6 +96,8 @@ type Paro = {
   sistemaId?: string;
   subsistemaId?: string;
   subsubsistemaId?: string;
+  desviacionCalidadId?: string;
+  materiaPrimaId?: string;
   descripcion?: string;
 };
 
@@ -102,6 +105,17 @@ type ProductionNote = {
   id: string;
   content: string;
   timestamp: Date;
+};
+
+// Add type for quality deviations
+type DesviacionCalidad = {
+  id: string;
+  nombre: string;
+};
+
+type MateriaPrima = {
+  id: string;
+  nombre: string;
 };
 
 export function ProductionStatus() {
@@ -160,6 +174,60 @@ export function ProductionStatus() {
 
   // Add new state for inline editing
   const [inlineEditNote, setInlineEditNote] = useState<string>("");
+
+  // Add state for quality deviations
+  const [desviacionesCalidad, setDesviacionesCalidad] = useState<DesviacionCalidad[]>([]);
+  const [materiasPrimas, setMateriasPrimas] = useState<MateriaPrima[]>([]);
+
+  // Add function to fetch quality deviations
+  const fetchDesviacionesCalidad = async (lineaId: string) => {
+    try {
+      const response = await fetch(`/api/production-lines/${lineaId}/quality-deviations`);
+      if (!response.ok) {
+        throw new Error("Error al cargar las desviaciones de calidad");
+      }
+      const data = await response.json();
+      setDesviacionesCalidad(data);
+    } catch (error) {
+      console.error("Error fetching desviaciones de calidad:", error);
+      toast.error("Error al cargar las desviaciones de calidad");
+    }
+  };
+
+  // Add function to fetch materias primas for the current product
+  const fetchMateriasPrimas = async (productoId: string) => {
+    try {
+      console.log("Fetching materias primas for producto:", productoId);
+      const response = await fetch(`/api/productos/${productoId}/materias-primas`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error("Error response from API:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        throw new Error(errorData?.error || "Error al cargar las materias primas");
+      }
+      
+      const data = await response.json();
+      console.log("Materias primas loaded:", data);
+      setMateriasPrimas(data);
+    } catch (error) {
+      console.error("Error fetching materias primas:", error);
+      toast.error("Error al cargar las materias primas");
+    }
+  };
+
+  // Modify useEffect to include fetching quality deviations when order changes
+  useEffect(() => {
+    if (order?.lineaProduccion?.id) {
+      fetchDesviacionesCalidad(order.lineaProduccion.id);
+    }
+    if (order?.producto?.id) {
+      fetchMateriasPrimas(order.producto.id);
+    }
+  }, [order?.lineaProduccion?.id, order?.producto?.id]);
 
   // Function to calculate stop minutes based on hourly production
   const calculateStopMinutes = (boxesProduced: number) => {
@@ -643,13 +711,21 @@ export function ProductionStatus() {
       // Combine all paros
       const allParos = [...parosMantenimiento, ...parosCalidad, ...parosOperacion];
       
+      // Determine if this is a finalization or just an hourly update
+      const isFinalizingProduction = !showHourlyUpdate;
+      
       console.log("Sending production data:", {
         cajasProducidas: totalCajasProducidas + parseInt(finalHourlyProduction),
         paros: allParos,
-        isFinalizingProduction: true
+        isFinalizingProduction
       });
 
-      const response = await fetch(`/api/production-orders/${order.id}/finish`, {
+      // Use the appropriate endpoint based on whether we're finalizing or updating
+      const endpoint = isFinalizingProduction ? 
+        `/api/production-orders/${order.id}/finish` :
+        `/api/production-orders/${order.id}/update`;
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -657,14 +733,14 @@ export function ProductionStatus() {
         body: JSON.stringify({
           cajasProducidas: totalCajasProducidas + parseInt(finalHourlyProduction),
           paros: allParos,
-          isFinalizingProduction: true
+          isFinalizingProduction
         }),
       });
         
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         console.error("API error response:", errorData);
-        throw new Error(errorData?.message || "Error al finalizar la producción");
+        throw new Error(errorData?.message || "Error al procesar la producción");
       }
       
       // Reset all paros lists
@@ -676,19 +752,44 @@ export function ProductionStatus() {
       setHourlyProduction("");
       setFinalHourlyProduction("");
       
-      toast.success("Producción finalizada correctamente");
+      // Show appropriate success message
+      toast.success(isFinalizingProduction ? 
+        "Producción finalizada correctamente" : 
+        "Producción actualizada correctamente"
+      );
       
-      // Redirect to the search page after successful completion
-      setTimeout(() => {
-        router.push('/production-chief?tab=search');
-      }, 1500); // Small delay to allow the toast to be visible
+      if (isFinalizingProduction) {
+        // Only redirect if we're actually finishing production
+        setTimeout(() => {
+          router.push('/production-chief?tab=search');
+        }, 1500);
+      } else {
+        // If it's just an hourly update, update the lastUpdateTime and reset the countdown
+        const now = new Date();
+        setLastUpdateTime(now);
+        storeLastUpdateTime(order.id, now);
+        
+        // Set next update time to 1 hour from now
+        const nextUpdate = new Date(now);
+        nextUpdate.setHours(nextUpdate.getHours() + 1);
+        setNextUpdateTime(nextUpdate);
+        
+        // Reset countdown warning
+        setShowCountdownWarning(false);
+        
+        // Refresh the order data
+        await fetchOrder();
+      }
+      
+      // Close dialogs
+      setShowAddParoDialog(false);
+      setShowSummaryDialog(false);
       
     } catch (err) {
-      console.error("Error finishing production:", err);
-      toast.error(err instanceof Error ? err.message : "Error al finalizar la producción");
+      console.error("Error processing production:", err);
+      toast.error(err instanceof Error ? err.message : "Error al procesar la producción");
     } finally {
       setIsUpdating(false);
-      setShowAddParoDialog(false);
     }
   };
 
@@ -744,10 +845,28 @@ export function ProductionStatus() {
       return;
     }
 
-    // Check if the sistema has been selected
-    if (!currentParo.sistemaId || currentParo.sistemaId === "placeholder") {
-      toast.error("Por favor seleccione un sistema");
-      return;
+    // Check if the sistema has been selected for Mantenimiento and Operación
+    if (currentParoType !== "Calidad") {
+      if (!currentParo.sistemaId || currentParo.sistemaId === "placeholder") {
+        toast.error("Por favor seleccione un sistema");
+        return;
+      }
+    }
+
+    // Check if desviacion de calidad has been selected for Calidad
+    if (currentParoType === "Calidad") {
+      if (!currentParo.desviacionCalidadId || currentParo.desviacionCalidadId === "placeholder") {
+        toast.error("Por favor seleccione una desviación de calidad");
+        return;
+      }
+
+      // Check if materia prima has been selected when required
+      const selectedDesviacion = desviacionesCalidad.find(d => d.id === currentParo.desviacionCalidadId);
+      if (selectedDesviacion?.nombre === "Materia prima" && 
+          (!currentParo.materiaPrimaId || currentParo.materiaPrimaId === "placeholder")) {
+        toast.error("Por favor seleccione una materia prima");
+        return;
+      }
     }
     
     // Check if subsistema and subsubsistema have been selected for Mantenimiento paros only
@@ -814,6 +933,8 @@ export function ProductionStatus() {
       sistemaId: currentParo.sistemaId,
       subsistemaId: currentParo.subsistemaId,
       subsubsistemaId: currentParo.subsubsistemaId,
+      desviacionCalidadId: currentParo.desviacionCalidadId,
+      materiaPrimaId: currentParo.materiaPrimaId,
       descripcion: currentParo.descripcion
     };
     
@@ -888,7 +1009,16 @@ export function ProductionStatus() {
         tiempoMinutos: remainingTime > 0 ? defaultTime : 5,
         tipoParoId: tipoParo.id,
         tipoParoNombre: tipoParo.nombre,
-        descripcion: ""
+        descripcion: "",
+        ...(currentParoType !== "Calidad" && {
+          sistemaId: "placeholder",
+          subsistemaId: "placeholder",
+          subsubsistemaId: "placeholder"
+        }),
+        ...(currentParoType === "Calidad" && {
+          desviacionCalidadId: "placeholder",
+          materiaPrimaId: "placeholder"
+        })
       };
       setCurrentParo(newParo);
     }
@@ -1318,6 +1448,68 @@ export function ProductionStatus() {
     setEditingNoteId(null);
     setInlineEditNote("");
     toast.success("Nota actualizada correctamente");
+  };
+
+  const handleSaveParo = async () => {
+    if (!currentParo) return;
+
+    // Validate required fields
+    if (currentParo.tiempoMinutos <= 0) {
+      toast.error("El tiempo debe ser mayor a 0 minutos");
+      return;
+    }
+
+    if (currentParoType === "Calidad" && !currentParo.desviacionCalidadId) {
+      toast.error("Debe seleccionar una desviación de calidad");
+      return;
+    } else if (currentParoType !== "Calidad" && !currentParo.sistemaId) {
+      toast.error("Debe seleccionar un sistema");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/production-orders/stops", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...currentParo,
+          ordenProduccionId: order?.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al guardar el paro");
+      }
+
+      const data = await response.json();
+      
+      // Update paros list based on type
+      if (currentParoType === "Mantenimiento") {
+        setParosMantenimiento([...parosMantenimiento, data]);
+      } else if (currentParoType === "Calidad") {
+        setParosCalidad([...parosCalidad, data]);
+      } else if (currentParoType === "Operación") {
+        setParosOperacion([...parosOperacion, data]);
+      }
+
+      // Reset form
+      setCurrentParo({
+        tiempoMinutos: 0,
+        tipoParoId: currentParoType === "Mantenimiento" ? "1" : currentParoType === "Calidad" ? "2" : "3",
+        sistemaId: "placeholder",
+        subsistemaId: "placeholder",
+        subsubsistemaId: "placeholder",
+        desviacionCalidadId: "placeholder",
+        descripcion: "",
+      });
+
+      toast.success("Paro guardado exitosamente");
+    } catch (error) {
+      console.error("Error saving paro:", error);
+      toast.error("Error al guardar el paro");
+    }
   };
 
   if (isLoading) {
@@ -1769,19 +1961,32 @@ export function ProductionStatus() {
                   </div>
                 </div>
                 
-                {/* Sistema selection - for all paro types */}
-                    <div>
-                  <Label htmlFor="sistema">Sistema</Label>
+                {/* Sistema or Desviacion selection based on paro type */}
+                <div>
+                  <Label htmlFor={currentParoType === "Calidad" ? "desviacion" : "sistema"}>
+                    {currentParoType === "Calidad" ? "Desviación de Calidad" : "Sistema"}
+                  </Label>
                   <Select
-                    value={currentParo?.sistemaId || "placeholder"}
+                    value={currentParoType === "Calidad" ? (currentParo?.desviacionCalidadId || "placeholder") : (currentParo?.sistemaId || "placeholder")}
                     onValueChange={(value) => {
                       if (currentParo && value !== "placeholder") {
-                        setCurrentParo({
-                          ...currentParo,
-                          sistemaId: value,
-                          subsistemaId: "placeholder",
-                          subsubsistemaId: "placeholder"
-                        });
+                        if (currentParoType === "Calidad") {
+                          setCurrentParo({
+                            ...currentParo,
+                            desviacionCalidadId: value,
+                            sistemaId: undefined,
+                            subsistemaId: undefined,
+                            subsubsistemaId: undefined,
+                            materiaPrimaId: undefined
+                          });
+                        } else {
+                          setCurrentParo({
+                            ...currentParo,
+                            sistemaId: value,
+                            subsistemaId: "placeholder",
+                            subsubsistemaId: "placeholder"
+                          });
+                        }
                       }
                     }}
                   >
@@ -1794,18 +1999,60 @@ export function ProductionStatus() {
                             ? "focus-visible:ring-green-500 border-green-200" 
                             : ""
                     }`}>
-                      <SelectValue placeholder="Seleccione un sistema" />
-                        </SelectTrigger>
-                        <SelectContent>
-                      <SelectItem value="placeholder">Seleccione un sistema</SelectItem>
-                      {sistemas.map((sistema) => (
-                        <SelectItem key={sistema.id} value={sistema.id}>
-                          {sistema.name}
+                      <SelectValue placeholder={currentParoType === "Calidad" ? "Seleccione una desviación" : "Seleccione un sistema"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="placeholder">
+                        {currentParoType === "Calidad" ? "Seleccione una desviación" : "Seleccione un sistema"}
+                      </SelectItem>
+                      {currentParoType === "Calidad" 
+                        ? desviacionesCalidad.map((desviacion) => (
+                            <SelectItem key={desviacion.id} value={desviacion.id}>
+                              {desviacion.nombre}
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                          ))
+                        : sistemas.map((sistema) => (
+                            <SelectItem key={sistema.id} value={sistema.id}>
+                              {sistema.name}
+                            </SelectItem>
+                          ))
+                      }
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Materia Prima selection - only for Calidad when desviacion is "Materia prima" */}
+                {currentParoType === "Calidad" && 
+                  currentParo?.desviacionCalidadId && 
+                  currentParo.desviacionCalidadId !== "placeholder" &&
+                  desviacionesCalidad.find(d => d.id === currentParo.desviacionCalidadId)?.nombre === "Materia prima" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="materiaPrima">Materia Prima</Label>
+                    <Select
+                      value={currentParo?.materiaPrimaId || "placeholder"}
+                      onValueChange={(value) => {
+                        if (currentParo) {
+                          setCurrentParo({
+                            ...currentParo,
+                            materiaPrimaId: value
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="focus-visible:ring-amber-500 border-amber-200">
+                        <SelectValue placeholder="Seleccione una materia prima" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="placeholder">Seleccione una materia prima</SelectItem>
+                        {materiasPrimas.map((materiaPrima) => (
+                          <SelectItem key={materiaPrima.id} value={materiaPrima.id}>
+                            {materiaPrima.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 
                 {/* Subsistema selection - only for Mantenimiento */}
                 {currentParoType === "Mantenimiento" && currentParo?.sistemaId && currentParo.sistemaId !== "placeholder" && (
@@ -1876,10 +2123,17 @@ export function ProductionStatus() {
                       !currentParo || 
                       !currentParo.tiempoMinutos || 
                       currentParo.tiempoMinutos <= 0 || 
-                      !currentParo.sistemaId ||
-                      currentParo.sistemaId === "placeholder" ||
-                      (currentParoType === "Mantenimiento" && (!currentParo.subsistemaId || currentParo.subsistemaId === "placeholder")) ||
-                      (currentParoType === "Mantenimiento" && (!currentParo.subsubsistemaId || currentParo.subsubsistemaId === "placeholder"))
+                      (currentParoType === "Calidad" ? (
+                        !currentParo.desviacionCalidadId || 
+                        currentParo.desviacionCalidadId === "placeholder" ||
+                        (desviacionesCalidad.find(d => d.id === currentParo.desviacionCalidadId)?.nombre === "Materia prima" &&
+                        (!currentParo.materiaPrimaId || currentParo.materiaPrimaId === "placeholder"))
+                      ) : (
+                        !currentParo.sistemaId ||
+                        currentParo.sistemaId === "placeholder" ||
+                        (currentParoType === "Mantenimiento" && (!currentParo.subsistemaId || currentParo.subsistemaId === "placeholder")) ||
+                        (currentParoType === "Mantenimiento" && (!currentParo.subsubsistemaId || currentParo.subsubsistemaId === "placeholder"))
+                      ))
                     }
                     className={`${
                       currentParoType === "Mantenimiento" 
@@ -2193,136 +2447,124 @@ export function ProductionStatus() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Mantenimiento paros */}
                 <div className="space-y-2 bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md">
-                  <h4 className="font-medium flex items-center text-blue-700 dark:text-blue-400">
-                    <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
-                    Mantenimiento ({parosMantenimiento.length})
-                  </h4>
-                  {parosMantenimiento.length === 0 ? (
-                    <div className="text-center py-2 text-muted-foreground text-sm">
-                      No hay paros registrados
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                      {parosMantenimiento.map((paro, index) => (
-                        <div key={index} className="bg-white dark:bg-slate-800 p-2 rounded-md shadow-sm border border-blue-100 dark:border-blue-900">
-                          <div className="flex justify-between items-start">
-                            <div className="font-medium">{paro.tiempoMinutos} minutos</div>
-                          </div>
-                          {paro.sistemaId && paro.sistemaId !== "placeholder" && (
-                            <div className="text-xs text-muted-foreground">
-                              Sistema: {getSistemaNombre(paro.sistemaId)}
-                            </div>
-                          )}
-                          {paro.subsistemaId && paro.subsistemaId !== "placeholder" && (
-                            <div className="text-xs text-muted-foreground">
-                              Subsistema: {getSubsistemaNombre(paro.subsistemaId)}
-                            </div>
-                          )}
-                          {paro.subsubsistemaId && paro.subsubsistemaId !== "placeholder" && (
-                            <div className="text-xs text-muted-foreground">
-                              Subsubsistema: {getSubsubsistemaNombre(paro.subsubsistemaId)}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-blue-700 dark:text-blue-400">Mantenimiento</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                      onClick={() => {
+                        setShowSummaryDialog(false);
+                        setCurrentParoType("Mantenimiento");
+                        setShowAddParoDialog(true);
+                      }}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Paros registrados:</p>
+                    <p className="font-medium">{parosMantenimiento.length}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Tiempo total:</p>
+                    <p className="font-medium">{parosMantenimiento.reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} min</p>
+                  </div>
                 </div>
 
                 {/* Calidad paros */}
                 <div className="space-y-2 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-md">
-                  <h4 className="font-medium flex items-center text-amber-700 dark:text-amber-400">
-                    <span className="w-3 h-3 bg-amber-500 rounded-full mr-2"></span>
-                    Calidad ({parosCalidad.length})
-                  </h4>
-                  {parosCalidad.length === 0 ? (
-                    <div className="text-center py-2 text-muted-foreground text-sm">
-                      No hay paros registrados
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                      {parosCalidad.map((paro, index) => (
-                        <div key={index} className="bg-white dark:bg-slate-800 p-2 rounded-md shadow-sm border border-amber-100 dark:border-amber-900">
-                          <div className="flex justify-between items-start">
-                            <div className="font-medium">{paro.tiempoMinutos} minutos</div>
-                          </div>
-                          {paro.sistemaId && paro.sistemaId !== "placeholder" && (
-                            <div className="text-xs text-muted-foreground">
-                              Sistema: {getSistemaNombre(paro.sistemaId)}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-amber-700 dark:text-amber-400">Calidad</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                      onClick={() => {
+                        setShowSummaryDialog(false);
+                        setCurrentParoType("Calidad");
+                        setShowAddParoDialog(true);
+                      }}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Paros registrados:</p>
+                    <p className="font-medium">{parosCalidad.length}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Tiempo total:</p>
+                    <p className="font-medium">{parosCalidad.reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} min</p>
+                  </div>
                 </div>
 
                 {/* Operación paros */}
                 <div className="space-y-2 bg-green-50 dark:bg-green-950/30 p-3 rounded-md">
-                  <h4 className="font-medium flex items-center text-green-700 dark:text-green-400">
-                    <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-                    Operación ({parosOperacion.length})
-                  </h4>
-                  {parosOperacion.length === 0 ? (
-                    <div className="text-center py-2 text-muted-foreground text-sm">
-                      No hay paros registrados
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                      {parosOperacion.map((paro, index) => (
-                        <div key={index} className="bg-white dark:bg-slate-800 p-2 rounded-md shadow-sm border border-green-100 dark:border-green-900">
-                          <div className="flex justify-between items-start">
-                            <div className="font-medium">{paro.tiempoMinutos} minutos</div>
-                          </div>
-                          {paro.sistemaId && paro.sistemaId !== "placeholder" && (
-                            <div className="text-xs text-muted-foreground">
-                              Sistema: {getSistemaNombre(paro.sistemaId)}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-green-700 dark:text-green-400">Operación</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
+                      onClick={() => {
+                        setShowSummaryDialog(false);
+                        setCurrentParoType("Operación");
+                        setShowAddParoDialog(true);
+                      }}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Paros registrados:</p>
+                    <p className="font-medium">{parosOperacion.length}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Tiempo total:</p>
+                    <p className="font-medium">{parosOperacion.reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} min</p>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              {/* Time Summary */}
-              <div className="mt-4 pt-4 border-t">
-                <div className="flex justify-between items-center">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">Tiempo total asignado:</p>
-                    <p className="font-medium text-lg">
-                      {[...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                        .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                        .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos
+            {/* Time Summary */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border shadow-sm">
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">Tiempo Total Asignado</h4>
+                <p className="text-2xl font-bold">
+                  {[...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                    .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                    .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border shadow-sm">
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">Tiempo Restante por Asignar</h4>
+                <p className={`text-2xl font-bold ${
+                  remainingDowntimeMinutes - 
+                  [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                    .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                    .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 
+                    ? "text-amber-500" 
+                    : "text-green-500"
+                }`}>
+                  {remainingDowntimeMinutes - 
+                   [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                     .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                     .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos
+                </p>
+                {remainingDowntimeMinutes - 
+                   [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+                     .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+                     .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 && (
+                    <p className="text-sm font-normal text-amber-500 mt-1">
+                      Debe asignar todo el tiempo antes de guardar
                     </p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">Tiempo restante sin asignar:</p>
-                    <p className={`font-medium text-lg ${
-                      remainingDowntimeMinutes - 
-                      [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                        .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                        .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 
-                        ? "text-amber-500" 
-                        : "text-green-500"
-                    }`}>
-                      {remainingDowntimeMinutes - 
-                       [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                         .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                         .reduce((sum, paro) => sum + paro.tiempoMinutos, 0)} minutos
-                      {remainingDowntimeMinutes - 
-                       [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                         .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                         .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0 && (
-                        <span className="ml-2 text-amber-500 text-sm">
-                          (Debe asignar todo el tiempo antes de guardar)
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

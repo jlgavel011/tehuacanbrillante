@@ -22,6 +22,7 @@ export async function POST(
       subsistemaId, 
       subsubsistemaId, 
       sistemaId,
+      desviacionCalidadId,
       descripcion 
     } = body;
 
@@ -50,6 +51,7 @@ export async function POST(
         lineaProduccionId,
         subsistemaId: subsistemaId || null,
         subsubsistemaId: subsubsistemaId || null,
+        desviacionCalidadId: desviacionCalidadId || null,
         descripcion: descripcion || null,
         fechaInicio: new Date(),
         fechaFin: new Date(), // Since we're recording past paros, set fechaFin to now
@@ -58,6 +60,7 @@ export async function POST(
         tipoParo: true,
         subsistema: true,
         subsubsistema: true,
+        desviacionCalidad: true,
       },
     });
 
