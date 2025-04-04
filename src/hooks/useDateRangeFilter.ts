@@ -1,15 +1,41 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { DateRange } from "react-day-picker";
-import { addDays, startOfToday } from "date-fns";
+import { addDays, startOfMonth, subDays, subYears } from "date-fns";
 import type { PeriodOption } from "@/components/reports/DateRangeFilter";
 
-// Función para obtener el rango de fechas por defecto (últimos 30 días)
-const getDefaultDateRange = (): DateRange => {
-  const today = startOfToday();
-  return {
-    from: addDays(today, -30),
-    to: today,
-  };
+// Función para obtener el rango de fechas basado en el período
+const getDateRangeFromPeriod = (period: PeriodOption): DateRange => {
+  const today = new Date();
+  
+  switch (period) {
+    case "7d":
+      return {
+        from: subDays(today, 7),
+        to: today,
+      };
+    case "30d":
+      return {
+        from: subDays(today, 30),
+        to: today,
+      };
+    case "90d":
+      return {
+        from: subDays(today, 90),
+        to: today,
+      };
+    case "1y":
+      return {
+        from: subYears(today, 1),
+        to: today,
+      };
+    default:
+      return {
+        from: startOfMonth(today),
+        to: today,
+      };
+  }
 };
 
 // Función para recuperar los valores guardados del localStorage
@@ -18,7 +44,7 @@ const getSavedDateRange = (): DateRange | undefined => {
   
   try {
     const saved = localStorage.getItem("dateRange");
-    if (!saved) return getDefaultDateRange();
+    if (!saved) return getDateRangeFromPeriod("30d");
     
     const { from, to } = JSON.parse(saved);
     return {
@@ -26,7 +52,7 @@ const getSavedDateRange = (): DateRange | undefined => {
       to: to ? new Date(to) : undefined,
     };
   } catch (error) {
-    return getDefaultDateRange();
+    return getDateRangeFromPeriod("30d");
   }
 };
 
@@ -42,17 +68,25 @@ const getSavedPeriod = (): PeriodOption => {
 };
 
 export function useDateRangeFilter() {
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>(() => getSavedPeriod());
   const [date, setDate] = useState<DateRange | undefined>(() => getSavedDateRange());
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>(() => getSavedPeriod());
 
-  // Efecto inicial para asegurar que los valores estén sincronizados
-  useEffect(() => {
-    const period = getSavedPeriod();
-    const dateRange = getSavedDateRange();
+  // Manejar cambios en el período seleccionado
+  const handlePeriodChange = (newPeriod: PeriodOption) => {
+    setSelectedPeriod(newPeriod);
+    if (newPeriod !== "custom") {
+      const newDateRange = getDateRangeFromPeriod(newPeriod);
+      setDate(newDateRange);
+    }
+  };
 
-    setSelectedPeriod(period);
-    setDate(dateRange);
-  }, []);
+  // Manejar cambios en el rango de fechas
+  const handleDateChange = (newDate: DateRange | undefined) => {
+    setDate(newDate);
+    if (newDate) {
+      setSelectedPeriod("custom");
+    }
+  };
 
   // Guardar cambios en localStorage
   useEffect(() => {
@@ -69,9 +103,9 @@ export function useDateRangeFilter() {
   }, [selectedPeriod]);
 
   return {
-    selectedPeriod,
-    setSelectedPeriod,
     date,
-    setDate,
+    setDate: handleDateChange,
+    selectedPeriod,
+    setSelectedPeriod: handlePeriodChange,
   };
 } 

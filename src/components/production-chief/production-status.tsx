@@ -585,9 +585,9 @@ export function ProductionStatus() {
           tiempoMinutos: 0,
           tipoParoId: mantenimientoTipo.id,
           tipoParoNombre: mantenimientoTipo.nombre,
-          sistemaId: "placeholder",
-          subsistemaId: "placeholder",
-          subsubsistemaId: "placeholder",
+          sistemaId: "",  // Empty string instead of placeholder
+          subsistemaId: undefined,  // undefined instead of placeholder
+          subsubsistemaId: undefined,  // undefined instead of placeholder
           descripcion: ""
         });
         setShowAddParoDialog(true);
@@ -689,9 +689,9 @@ export function ProductionStatus() {
         tiempoMinutos: 0,
         tipoParoId: mantenimientoTipo.id,
         tipoParoNombre: mantenimientoTipo.nombre,
-        sistemaId: "placeholder",
-        subsistemaId: "placeholder",
-        subsubsistemaId: "placeholder",
+        sistemaId: "",  // Empty string instead of placeholder
+        subsistemaId: undefined,  // undefined instead of placeholder
+        subsubsistemaId: undefined,  // undefined instead of placeholder
         descripcion: "",
       });
       
@@ -847,7 +847,7 @@ export function ProductionStatus() {
 
     // Check if the sistema has been selected for Mantenimiento and Operación
     if (currentParoType !== "Calidad") {
-      if (!currentParo.sistemaId || currentParo.sistemaId === "placeholder") {
+      if (!currentParo.sistemaId || currentParo.sistemaId === "") {
         toast.error("Por favor seleccione un sistema");
         return;
       }
@@ -871,12 +871,12 @@ export function ProductionStatus() {
     
     // Check if subsistema and subsubsistema have been selected for Mantenimiento paros only
     if (currentParoType === "Mantenimiento") {
-      if (!currentParo.subsistemaId || currentParo.subsistemaId === "placeholder") {
+      if (!currentParo.subsistemaId) {
         toast.error("Por favor seleccione un subsistema");
         return;
       }
       
-      if (!currentParo.subsubsistemaId || currentParo.subsubsistemaId === "placeholder") {
+      if (!currentParo.subsubsistemaId) {
         toast.error("Por favor seleccione un subsubsistema");
         return;
       }
@@ -976,9 +976,9 @@ export function ProductionStatus() {
     setCurrentParo({
       tiempoMinutos: 0,
       tipoParoId,
-      sistemaId: "placeholder",
-      subsistemaId: "placeholder",
-      subsubsistemaId: "placeholder",
+      sistemaId: "",  // Empty string instead of placeholder
+      subsistemaId: undefined,  // undefined instead of null
+      subsubsistemaId: undefined,  // undefined instead of null
       descripcion: "",
     });
     
@@ -1011,9 +1011,9 @@ export function ProductionStatus() {
         tipoParoNombre: tipoParo.nombre,
         descripcion: "",
         ...(currentParoType !== "Calidad" && {
-          sistemaId: "placeholder",
-          subsistemaId: "placeholder",
-          subsubsistemaId: "placeholder"
+          sistemaId: "",  // Empty string instead of placeholder
+          subsistemaId: undefined,  // undefined instead of placeholder
+          subsubsistemaId: undefined  // undefined instead of placeholder
         }),
         ...(currentParoType === "Calidad" && {
           desviacionCalidadId: "placeholder",
@@ -1052,9 +1052,9 @@ export function ProductionStatus() {
             tiempoMinutos: Math.min(remainingTime, 15),
             tipoParoId: calidadTipo.id,
             tipoParoNombre: calidadTipo.nombre,
-            sistemaId: "placeholder",
-            subsistemaId: "placeholder",
-            subsubsistemaId: "placeholder",
+            sistemaId: "",  // Empty string instead of placeholder
+            subsistemaId: undefined,  // undefined instead of placeholder
+            subsubsistemaId: undefined,  // undefined instead of placeholder
             descripcion: ""
           });
           setShowAddParoDialog(true);
@@ -1067,9 +1067,9 @@ export function ProductionStatus() {
               tiempoMinutos: Math.min(remainingTime, 15),
               tipoParoId: operacionTipo.id,
               tipoParoNombre: operacionTipo.nombre,
-              sistemaId: "placeholder",
-              subsistemaId: "placeholder",
-              subsubsistemaId: "placeholder",
+              sistemaId: "",  // Empty string instead of placeholder
+              subsistemaId: undefined,  // undefined instead of null
+              subsubsistemaId: undefined,  // undefined instead of null
               descripcion: ""
             });
             setShowAddParoDialog(true);
@@ -1093,9 +1093,9 @@ export function ProductionStatus() {
             tiempoMinutos: Math.min(remainingTime, 15),
             tipoParoId: operacionTipo.id,
             tipoParoNombre: operacionTipo.nombre,
-            sistemaId: "placeholder",
-            subsistemaId: "placeholder",
-            subsubsistemaId: "placeholder",
+            sistemaId: "",  // Empty string instead of placeholder
+            subsistemaId: undefined,  // undefined instead of null
+            subsubsistemaId: undefined,  // undefined instead of null
             descripcion: ""
           });
           setShowAddParoDialog(true);
@@ -1498,9 +1498,9 @@ export function ProductionStatus() {
       setCurrentParo({
         tiempoMinutos: 0,
         tipoParoId: currentParoType === "Mantenimiento" ? "1" : currentParoType === "Calidad" ? "2" : "3",
-        sistemaId: "placeholder",
-        subsistemaId: "placeholder",
-        subsubsistemaId: "placeholder",
+        sistemaId: "",  // Empty string instead of placeholder
+        subsistemaId: undefined,  // undefined instead of placeholder
+        subsubsistemaId: undefined,  // undefined instead of placeholder
         desviacionCalidadId: "placeholder",
         descripcion: "",
       });
@@ -1843,7 +1843,7 @@ export function ProductionStatus() {
       
       {/* Add Paro Dialog */}
       <Dialog open={showAddParoDialog} onOpenChange={(open) => {
-        if (!open && currentParo && (currentParo.tiempoMinutos > 0 || currentParo.sistemaId !== "placeholder")) {
+        if (!open && currentParo && (currentParo.tiempoMinutos > 0 || currentParo.sistemaId !== "")) {
           setShowAddParoCloseConfirmDialog(true);
         } else {
           setShowAddParoDialog(open);
@@ -1983,8 +1983,8 @@ export function ProductionStatus() {
                           setCurrentParo({
                             ...currentParo,
                             sistemaId: value,
-                            subsistemaId: "placeholder",
-                            subsubsistemaId: "placeholder"
+                            subsistemaId: undefined,  // undefined instead of placeholder
+                            subsubsistemaId: undefined  // undefined instead of placeholder
                           });
                         }
                       }
@@ -2668,9 +2668,9 @@ export function ProductionStatus() {
                     setCurrentParo({
                       tiempoMinutos: 0,
                       tipoParoId,
-                      sistemaId: "placeholder",
-                      subsistemaId: "placeholder",
-                      subsubsistemaId: "placeholder",
+                      sistemaId: "",  // Empty string instead of placeholder
+                      subsistemaId: undefined,  // undefined instead of null
+                      subsubsistemaId: undefined,  // undefined instead of null
                       descripcion: "",
                     });
                   }

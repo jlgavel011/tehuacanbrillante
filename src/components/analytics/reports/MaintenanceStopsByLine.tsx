@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Title, BarChart, TabGroup, TabList, Tab, TabPanels, TabPanel, Flex } from "@tremor/react";
-import { formatNumber } from "@/lib/utils/formatters";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, ChevronRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ReportCard } from "@/components/dashboard/report-card";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { useDateRange } from "@/context/DateRangeContext";
+import { BarChart } from "../charts/BarChart";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MaintenanceStopData {
   name: string;
@@ -11,100 +18,146 @@ interface MaintenanceStopData {
 }
 
 export function MaintenanceStopsByLine() {
+  const router = useRouter();
+  const { date } = useDateRange();
   const [data, setData] = useState<MaintenanceStopData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<"tiempo" | "cantidad">("tiempo");
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!date?.from || !date?.to) return;
+
+      setLoading(true);
+      setError(null);
       try {
-        const response = await fetch("/api/analytics/maintenance-stops-by-line");
-        if (!response.ok) {
-          throw new Error("Error al cargar los datos");
-        }
+        const params = new URLSearchParams({
+          from: date.from.toISOString(),
+          to: date.to.toISOString(),
+        });
+
+        const response = await fetch(`/api/analytics/maintenance-stops-by-line?${params}`);
+        if (!response.ok) throw new Error("Error al cargar los datos");
         const result = await response.json();
         setData(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error desconocido");
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
-
     fetchData();
-  }, []);
+  }, [date]);
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <Card className="h-full">
-        <Title>Líneas con Más Paros por Mantenimiento</Title>
-        <div className="h-[300px] flex items-center justify-center">
-          Cargando datos...
+      <ReportCard
+        title="Líneas con Más Paros por Mantenimiento"
+        subtitle="Distribución de paros por línea de producción"
+      >
+        <div className="space-y-8">
+          <div className="space-y-2">
+            <Skeleton className="h-24 w-full" />
+          </div>
+          <Skeleton className="h-[300px] w-full" />
         </div>
-      </Card>
+      </ReportCard>
     );
   }
 
-  if (error || !data) {
+  if (error) {
     return (
-      <Card className="h-full">
-        <Title>Líneas con Más Paros por Mantenimiento</Title>
-        <div className="h-[300px] flex items-center justify-center text-red-500">
-          {error || "No hay datos disponibles"}
-        </div>
-      </Card>
+      <ReportCard
+        title="Líneas con Más Paros por Mantenimiento"
+        subtitle="Distribución de paros por línea de producción"
+      >
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </ReportCard>
     );
   }
 
-  // Calculate totals for the summary
-  const totalParos = data.reduce((acc, item) => acc + item.paros, 0);
-  const totalTiempo = data.reduce((acc, item) => acc + item.tiempo_total, 0);
+  if (!data || data.length === 0) {
+    return (
+      <ReportCard
+        title="Líneas con Más Paros por Mantenimiento"
+        subtitle="Distribución de paros por línea de producción"
+      >
+        <Alert>
+          <AlertDescription>No hay datos disponibles para el período seleccionado</AlertDescription>
+        </Alert>
+      </ReportCard>
+    );
+  }
+
+  const chartData = data.map((item) => ({
+    name: item.name,
+    Cantidad: selectedMetric === "cantidad" ? item.paros : item.tiempo_total,
+  }));
+
+  const handleViewDetails = () => {
+    router.push("/reports/maintenance-stops");
+  };
 
   return (
-    <Card className="h-full">
-      <Title>Líneas con Más Paros por Mantenimiento</Title>
-      
-      {/* Summary section */}
-      <Flex className="mt-4" justifyContent="around">
-        <div className="text-center">
-          <Title>Total Paros</Title>
-          <p className="text-tremor-metric font-semibold">{formatNumber(totalParos)}</p>
+    <ReportCard
+      title="Líneas con Más Paros por Mantenimiento"
+      subtitle="Distribución de paros por línea de producción"
+      headerExtra={
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleViewDetails}
+          className="h-8 w-8"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      }
+      className="p-0"
+      headerClassName="bg-[#fff7e1]"
+    >
+      <div className="border-b border-border/50" />
+      <div className="flex flex-col gap-2">
+        <div className="px-6 pt-4">
+          <Tabs
+            defaultValue="tiempo"
+            value={selectedMetric}
+            onValueChange={(value) => setSelectedMetric(value as "tiempo" | "cantidad")}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="tiempo">Tiempo Total</TabsTrigger>
+              <TabsTrigger value="cantidad">Cantidad de Paros</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
-        <div className="text-center">
-          <Title>Tiempo Total</Title>
-          <p className="text-tremor-metric font-semibold">{formatNumber(totalTiempo)} min</p>
+        <div className="flex items-center justify-center py-6 px-6 min-h-[400px]">
+          <div className="h-[320px] w-full -ml-2">
+            <BarChart
+              data={chartData}
+              index="name"
+              categories={["Cantidad"]}
+              colors={["#FFE091"]}
+              valueFormatter={(value) =>
+                selectedMetric === "cantidad"
+                  ? value.toLocaleString("es-MX", {
+                      maximumFractionDigits: 0,
+                    })
+                  : `${value.toLocaleString("es-MX", {
+                      maximumFractionDigits: 0,
+                    })} min`
+              }
+              showLegend={false}
+              yAxisWidth={65}
+              className="h-full"
+              layout="vertical"
+            />
+          </div>
         </div>
-      </Flex>
-
-      {/* Charts section */}
-      <TabGroup className="mt-6">
-        <TabList>
-          <Tab>Tiempo Total</Tab>
-          <Tab>Cantidad de Paros</Tab>
-        </TabList>
-        <TabPanels>
-          <TabPanel>
-            <BarChart
-              className="mt-4 h-72"
-              data={data}
-              index="name"
-              categories={["tiempo_total"]}
-              valueFormatter={(value) => `${formatNumber(value)} min`}
-              colors={["blue-500"]}
-            />
-          </TabPanel>
-          <TabPanel>
-            <BarChart
-              className="mt-4 h-72"
-              data={data}
-              index="name"
-              categories={["paros"]}
-              valueFormatter={formatNumber}
-              colors={["emerald-500"]}
-            />
-          </TabPanel>
-        </TabPanels>
-      </TabGroup>
-    </Card>
+      </div>
+    </ReportCard>
   );
 } 

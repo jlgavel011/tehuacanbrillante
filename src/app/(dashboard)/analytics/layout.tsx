@@ -1,7 +1,11 @@
+"use client";
+
+import { DateRangeProvider } from "@/context/DateRangeContext";
+
 export default function AnalyticsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return <DateRangeProvider>{children}</DateRangeProvider>;
 } 

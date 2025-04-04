@@ -1,55 +1,65 @@
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { NextResponse } from "next/server";
-import { TipoParo } from "@prisma/client";
 
-interface StopAggregation {
-  tipoParoId: string;
-  _count: {
-    _all: number;
-  };
-  _sum: {
-    tiempoMinutos: number | null;
-  };
-}
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Get the last 30 days for analysis
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const searchParams = request.nextUrl.searchParams;
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
 
-    // Fetch all stop types first to ensure we have their names
-    const tiposParos = await prisma.tipoParo.findMany();
-    const tiposMap = new Map(tiposParos.map((tipo: TipoParo) => [tipo.id, tipo.nombre]));
+    if (!from || !to) {
+      return NextResponse.json(
+        { error: "Se requieren los parámetros 'from' y 'to'" },
+        { status: 400 }
+      );
+    }
 
-    // Fetch and aggregate stops data
-    const paros = await prisma.paro.groupBy({
-      by: ['tipoParoId'],
-      where: {
-        createdAt: {
-          gte: thirtyDaysAgo
-        }
-      },
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+
+    // Obtener los datos de paros agrupados por tipo
+    const parosPorTipo = await prisma.paro.groupBy({
+      by: ["tipoParoId"],
       _count: {
-        _all: true
+        _all: true,
       },
       _sum: {
-        tiempoMinutos: true
-      }
+        tiempoMinutos: true,
+      },
+      where: {
+        createdAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
     });
 
-    // Transform the data into the expected format
-    const result = paros.map(paro => ({
-      name: tiposMap.get(paro.tipoParoId) || 'Desconocido',
-      paros: paro._count._all,
-      tiempo_total: paro._sum.tiempoMinutos || 0
-    }));
+    // Obtener los tipos de paro para mapear los IDs a nombres
+    const tiposParos = await prisma.tipoParo.findMany();
+    const tiposMap = new Map(tiposParos.map(tipo => [tipo.id, tipo.nombre]));
 
-    return NextResponse.json(result);
+    // Calcular totales para porcentajes
+    const totalParos = parosPorTipo.reduce((acc, item) => acc + (item._count?._all || 0), 0);
+    const totalTiempo = parosPorTipo.reduce((acc, item) => acc + (item._sum?.tiempoMinutos || 0), 0);
+
+    // Mapear los resultados al formato requerido
+    const resultados = parosPorTipo.map((item) => {
+      const tipoNombre = tiposMap.get(item.tipoParoId) || "Desconocido";
+      return {
+        name: tipoNombre,
+        cantidad: item._count?._all || 0,
+        tiempo_total: item._sum?.tiempoMinutos || 0,
+        porcentaje: totalParos > 0 
+          ? ((item._count?._all || 0) / totalParos) * 100 
+          : 0,
+      };
+    });
+
+    return NextResponse.json(resultados);
   } catch (error) {
-    console.error('Error fetching stops by type:', error);
+    console.error("Error al obtener datos de paros por tipo:", error);
     return NextResponse.json(
-      { error: 'Error al obtener los datos de paros por tipo' },
+      { error: "Error al procesar la solicitud" },
       { status: 500 }
     );
   }

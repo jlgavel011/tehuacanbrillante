@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const lineaId = searchParams.get("lineaId");
     const tipoParoId = searchParams.get("tipoParoId");
     const produccionId = searchParams.get("produccionId");
+    const sistemaId = searchParams.get("sistemaId");
     const subsistemaId = searchParams.get("subsistemaId");
     const fechaInicio = searchParams.get("fechaInicio");
     const fechaFin = searchParams.get("fechaFin");
@@ -38,6 +39,10 @@ export async function GET(req: NextRequest) {
     
     if (produccionId) {
       where.produccionId = produccionId;
+    }
+    
+    if (sistemaId) {
+      where.sistemaId = sistemaId;
     }
     
     if (subsistemaId) {
@@ -69,6 +74,7 @@ export async function GET(req: NextRequest) {
             producto: true,
           },
         },
+        sistema: true,
         subsistema: true,
         subsubsistema: true,
       },
@@ -109,14 +115,52 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Get the tipo de paro
+    const tipoParo = await prisma.tipoParo.findUnique({
+      where: { id: body.tipoParoId }
+    });
+
+    if (!tipoParo) {
+      return new NextResponse(
+        JSON.stringify({ error: "Tipo de paro no encontrado" }),
+        { status: 404 }
+      );
+    }
     
-    // For maintenance paros, subsistema and/or subsubsistema are required
-    if (body.tipoParoId === "mantenimiento" && !body.subsistemaId) {
+    // For maintenance and operation stops, sistema is required
+    if ((tipoParo.nombre === "Mantenimiento" || tipoParo.nombre === "Operación") && !body.sistemaId) {
+      return new NextResponse(
+        JSON.stringify({ error: `Para paros de ${tipoParo.nombre.toLowerCase()}, se requiere especificar el sistema` }),
+        { status: 400 }
+      );
+    }
+    
+    // For maintenance stops, subsistema is required
+    if (tipoParo.nombre === "Mantenimiento" && !body.subsistemaId) {
       return new NextResponse(
         JSON.stringify({ error: "Para paros de mantenimiento, se requiere al menos un subsistema" }),
         { status: 400 }
       );
     }
+
+    // Handle dates properly
+    const now = new Date();
+    const mexicoDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
+    
+    // Create UTC dates for the start and end of the day
+    const fechaInicio = new Date(Date.UTC(
+      mexicoDate.getFullYear(),
+      mexicoDate.getMonth(),
+      mexicoDate.getDate()
+    ));
+    
+    const fechaFin = new Date(Date.UTC(
+      mexicoDate.getFullYear(),
+      mexicoDate.getMonth(),
+      mexicoDate.getDate()
+    ));
+    fechaFin.setUTCHours(23, 59, 59, 999);
     
     const paro = await prisma.paro.create({
       data: {
@@ -124,16 +168,18 @@ export async function POST(req: NextRequest) {
         tipoParoId: body.tipoParoId,
         produccionId: body.produccionId,
         lineaProduccionId: body.lineaProduccionId,
+        sistemaId: body.sistemaId || null,
         subsistemaId: body.subsistemaId || null,
         subsubsistemaId: body.subsubsistemaId || null,
         descripcion: body.descripcion || null,
-        fechaInicio: body.fechaInicio ? new Date(body.fechaInicio) : new Date(),
-        fechaFin: body.fechaFin ? new Date(body.fechaFin) : null,
+        fechaInicio,
+        fechaFin,
       },
       include: {
         tipoParo: true,
         lineaProduccion: true,
         produccion: true,
+        sistema: true,
         subsistema: true,
         subsubsistema: true,
       },

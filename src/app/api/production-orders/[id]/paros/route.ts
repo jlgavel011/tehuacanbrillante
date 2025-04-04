@@ -31,6 +31,28 @@ export async function POST(
       return new NextResponse("Missing required fields", { status: 400 });
     }
 
+    // Get the tipo de paro
+    const tipoParo = await prisma.tipoParo.findUnique({
+      where: { id: tipoParoId }
+    });
+
+    if (!tipoParo) {
+      return new NextResponse("Tipo de paro not found", { status: 404 });
+    }
+
+    // For maintenance and operation stops, sistema is required
+    if ((tipoParo.nombre === "Mantenimiento" || tipoParo.nombre === "Operación") && !sistemaId) {
+      return new NextResponse(
+        `Para paros de ${tipoParo.nombre.toLowerCase()}, se requiere especificar el sistema`,
+        { status: 400 }
+      );
+    }
+
+    // For maintenance stops, subsistema is also required
+    if (tipoParo.nombre === "Mantenimiento" && !subsistemaId) {
+      return new NextResponse("Para paros de mantenimiento, se requiere especificar el subsistema", { status: 400 });
+    }
+
     // Check if the order exists
     const order = await prisma.produccion.findUnique({
       where: {
@@ -42,6 +64,24 @@ export async function POST(
       return new NextResponse("Order not found", { status: 404 });
     }
 
+    // Handle dates properly
+    const now = new Date();
+    const mexicoDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
+    
+    // Create UTC dates for the start and end of the day
+    const fechaInicio = new Date(Date.UTC(
+      mexicoDate.getFullYear(),
+      mexicoDate.getMonth(),
+      mexicoDate.getDate()
+    ));
+    
+    const fechaFin = new Date(Date.UTC(
+      mexicoDate.getFullYear(),
+      mexicoDate.getMonth(),
+      mexicoDate.getDate()
+    ));
+    fechaFin.setUTCHours(23, 59, 59, 999);
+
     // Create the paro record
     const paro = await prisma.paro.create({
       data: {
@@ -49,15 +89,17 @@ export async function POST(
         tipoParoId,
         produccionId: params.id,
         lineaProduccionId,
+        sistemaId: sistemaId || null,
         subsistemaId: subsistemaId || null,
         subsubsistemaId: subsubsistemaId || null,
         desviacionCalidadId: desviacionCalidadId || null,
         descripcion: descripcion || null,
-        fechaInicio: new Date(),
-        fechaFin: new Date(), // Since we're recording past paros, set fechaFin to now
+        fechaInicio,
+        fechaFin,
       },
       include: {
         tipoParo: true,
+        sistema: true,
         subsistema: true,
         subsubsistema: true,
         desviacionCalidad: true,
@@ -89,6 +131,7 @@ export async function GET(
       },
       include: {
         tipoParo: true,
+        sistema: true,
         subsistema: true,
         subsubsistema: true,
       },

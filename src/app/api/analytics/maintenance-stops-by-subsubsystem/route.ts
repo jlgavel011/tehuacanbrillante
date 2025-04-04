@@ -1,123 +1,72 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 
-interface SubsubsystemStopData {
-  name: string;
-  subsistema: string;
-  sistema: string;
-  linea: string;
-  paros: number;
-  tiempo_total: number;
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Get the last 30 days for analysis
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Get date range from query parameters
+    const { searchParams } = new URL(request.url);
+    const fromDate = searchParams.get('from');
+    const toDate = searchParams.get('to');
 
-    // Get the ID of the "Mantenimiento" tipo paro
-    const tipoMantenimiento = await prisma.tipoParo.findFirst({
-      where: {
-        nombre: "Mantenimiento"
+    if (!fromDate || !toDate) {
+      return NextResponse.json(
+        { error: 'Se requieren los parámetros from y to' },
+        { status: 400 }
+      );
+    }
+
+    // Get all subsubsystems with their maintenance stops
+    const subsubsistemas = await prisma.subsubsistema.findMany({
+      include: {
+        paros: {
+          where: {
+            createdAt: {
+              gte: new Date(fromDate),
+              lte: new Date(toDate)
+            },
+            tipoParo: {
+              nombre: "Mantenimiento"
+            }
+          },
+          select: {
+            tiempoMinutos: true
+          }
+        },
+        subsistema: {
+          select: {
+            nombre: true,
+            sistema: {
+              select: {
+                nombre: true,
+                lineaProduccion: {
+                  select: {
+                    nombre: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        nombre: 'asc'
       }
     });
 
-    if (!tipoMantenimiento) {
-      throw new Error("Tipo de paro 'Mantenimiento' no encontrado");
-    }
+    // Calculate totals for each subsubsystem
+    const result = subsubsistemas.map(subsubsistema => ({
+      name: subsubsistema.nombre,
+      subsistema: subsubsistema.subsistema.nombre,
+      sistema: subsubsistema.subsistema.sistema.nombre,
+      linea: subsubsistema.subsistema.sistema.lineaProduccion.nombre,
+      paros: subsubsistema.paros.length,
+      tiempo_total: subsubsistema.paros.reduce((acc, paro) => acc + (paro.tiempoMinutos || 0), 0)
+    }));
 
-    // Use MongoDB aggregation pipeline
-    const result = await prisma.$runCommandRaw({
-      aggregate: "paros",
-      pipeline: [
-        {
-          $match: {
-            tipoParoId: tipoMantenimiento.id,
-            createdAt: { $gte: thirtyDaysAgo },
-            subsubsistemaId: { $ne: null }
-          }
-        },
-        {
-          $lookup: {
-            from: "subsubsistemas",
-            localField: "subsubsistemaId",
-            foreignField: "_id",
-            as: "subsubsistema"
-          }
-        },
-        {
-          $unwind: "$subsubsistema"
-        },
-        {
-          $lookup: {
-            from: "subsistemas",
-            localField: "subsubsistema.subsistemaId",
-            foreignField: "_id",
-            as: "subsistema"
-          }
-        },
-        {
-          $unwind: "$subsistema"
-        },
-        {
-          $lookup: {
-            from: "sistemas",
-            localField: "subsistema.sistemaId",
-            foreignField: "_id",
-            as: "sistema"
-          }
-        },
-        {
-          $unwind: "$sistema"
-        },
-        {
-          $lookup: {
-            from: "lineas_produccion",
-            localField: "sistema.lineaProduccionId",
-            foreignField: "_id",
-            as: "linea"
-          }
-        },
-        {
-          $unwind: "$linea"
-        },
-        {
-          $group: {
-            _id: {
-              subsubsistemaId: "$subsubsistema._id",
-              subsubsistemaNombre: "$subsubsistema.nombre",
-              subsistemaNombre: "$subsistema.nombre",
-              sistemaNombre: "$sistema.nombre",
-              lineaNombre: "$linea.nombre"
-            },
-            paros: { $sum: 1 },
-            tiempo_total: { $sum: "$tiempoMinutos" }
-          }
-        },
-        {
-          $project: {
-            _id: 0,
-            name: "$_id.subsubsistemaNombre",
-            subsistema: "$_id.subsistemaNombre",
-            sistema: "$_id.sistemaNombre",
-            linea: "$_id.lineaNombre",
-            paros: 1,
-            tiempo_total: 1
-          }
-        },
-        {
-          $sort: { tiempo_total: -1 }
-        },
-        {
-          $limit: 10 // Limit to top 10 subsubsystems
-        }
-      ],
-      cursor: {}
-    }) as unknown as { cursor: { firstBatch: SubsubsystemStopData[] } };
+    // Sort by total time in descending order
+    result.sort((a, b) => b.tiempo_total - a.tiempo_total);
 
-    return NextResponse.json(result.cursor.firstBatch);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching maintenance stops by subsubsystem:', error);
     return NextResponse.json(

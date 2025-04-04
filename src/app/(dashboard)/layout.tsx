@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
 import { SidebarProvider } from "@/lib/context/SidebarContext";
 import { useSidebar } from "@/lib/context/SidebarContext";
+import { DateRangeProvider } from "@/context/DateRangeContext";
 
 // Inner component to use the sidebar context
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
@@ -51,7 +52,9 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      <DateRangeProvider>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </DateRangeProvider>
     </SidebarProvider>
   );
 } 

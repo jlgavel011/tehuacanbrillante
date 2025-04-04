@@ -1,50 +1,51 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Get the last 30 days for analysis
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Get date range from query parameters
+    const { searchParams } = new URL(request.url);
+    const fromDate = searchParams.get('from');
+    const toDate = searchParams.get('to');
 
-    // Get the ID of the "Mantenimiento" tipo paro
-    const tipoMantenimiento = await prisma.tipoParo.findFirst({
-      where: {
-        nombre: "Mantenimiento"
-      }
-    });
-
-    if (!tipoMantenimiento) {
-      throw new Error("Tipo de paro 'Mantenimiento' no encontrado");
+    if (!fromDate || !toDate) {
+      return NextResponse.json(
+        { error: 'Se requieren los parámetros from y to' },
+        { status: 400 }
+      );
     }
 
-    // Fetch and aggregate stops data by line
-    const paros = await prisma.paro.groupBy({
-      by: ['lineaProduccionId'],
-      where: {
-        tipoParoId: tipoMantenimiento.id,
-        createdAt: {
-          gte: thirtyDaysAgo
+    // Get all production lines with their maintenance stops
+    const lineas = await prisma.lineaProduccion.findMany({
+      include: {
+        paros: {
+          where: {
+            createdAt: {
+              gte: new Date(fromDate),
+              lte: new Date(toDate)
+            },
+            tipoParo: {
+              nombre: "Mantenimiento"
+            }
+          },
+          select: {
+            tiempoMinutos: true
+          }
         }
       },
-      _count: {
-        _all: true
-      },
-      _sum: {
-        tiempoMinutos: true
+      orderBy: {
+        nombre: 'asc'
       }
     });
 
-    // Get all production lines to ensure we have their names
-    const lineas = await prisma.lineaProduccion.findMany();
-    const lineasMap = new Map(lineas.map(linea => [linea.id, linea.nombre]));
-
-    // Transform the data into the expected format
-    const result = paros.map(paro => ({
-      name: lineasMap.get(paro.lineaProduccionId) || 'Línea Desconocida',
-      paros: paro._count._all,
-      tiempo_total: paro._sum.tiempoMinutos || 0
-    }));
+    // Calculate totals for each line
+    const result = lineas.map(linea => {
+      return {
+        name: linea.nombre,
+        paros: linea.paros.length,
+        tiempo_total: linea.paros.reduce((acc, paro) => acc + (paro.tiempoMinutos || 0), 0)
+      };
+    });
 
     // Sort by total time in descending order
     result.sort((a, b) => b.tiempo_total - a.tiempo_total);

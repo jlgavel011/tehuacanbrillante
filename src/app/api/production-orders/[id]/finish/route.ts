@@ -70,6 +70,7 @@ export async function POST(
             console.log("Creating paro with data:", {
               tiempoMinutos: paro.tiempoMinutos,
               tipoParoId: paro.tipoParoId,
+              sistemaId: paro.sistemaId,
               subsistemaId: paro.subsistemaId,
               subsubsistemaId: paro.subsubsistemaId,
               desviacionCalidadId: paro.desviacionCalidadId,
@@ -82,8 +83,27 @@ export async function POST(
             const createData: Prisma.ParoCreateInput = {
               tiempoMinutos: paro.tiempoMinutos,
               descripcion: paro.descripcion || "",
-              fechaInicio: new Date(),
-              fechaFin: new Date(),
+              fechaInicio: (() => {
+                const now = new Date();
+                const mexicoDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
+                const utcDate = new Date(Date.UTC(
+                  mexicoDate.getFullYear(),
+                  mexicoDate.getMonth(),
+                  mexicoDate.getDate()
+                ));
+                return utcDate;
+              })(),
+              fechaFin: (() => {
+                const now = new Date();
+                const mexicoDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
+                const utcDate = new Date(Date.UTC(
+                  mexicoDate.getFullYear(),
+                  mexicoDate.getMonth(),
+                  mexicoDate.getDate()
+                ));
+                utcDate.setUTCHours(23, 59, 59, 999);
+                return utcDate;
+              })(),
               tipoParo: {
                 connect: { id: paro.tipoParoId }
               },
@@ -93,6 +113,11 @@ export async function POST(
               lineaProduccion: {
                 connect: { id: order.lineaProduccion.id }
               },
+              ...(paro.sistemaId && paro.sistemaId !== "placeholder" && {
+                sistema: {
+                  connect: { id: paro.sistemaId }
+                }
+              }),
               ...(paro.subsistemaId && paro.subsistemaId !== "placeholder" && {
                 subsistema: {
                   connect: { id: paro.subsistemaId }
@@ -108,7 +133,7 @@ export async function POST(
                   connect: { id: paro.desviacionCalidadId }
                 }
               }),
-              ...(hasValidMateriaPrima && {
+              ...(paro.materiaPrimaId && paro.materiaPrimaId !== "placeholder" && {
                 materiaPrima: {
                   connect: { id: paro.materiaPrimaId }
                 }

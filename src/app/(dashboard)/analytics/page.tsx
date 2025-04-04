@@ -49,6 +49,11 @@ import { CompareWithFilter } from "@/components/reports/CompareWithFilter";
 import { DateRangeProvider, useDateRange } from "@/context/DateRangeContext";
 import { cn } from "@/lib/utils";
 import { useProductsIndicators } from "@/hooks/useProductsIndicators";
+import { MostProducedBoxes } from "@/components/analytics/reports/MostProducedBoxes";
+import { useStopsIndicators } from "@/hooks/useStopsIndicators";
+import { StopsByLine } from "@/components/analytics/reports/StopsByLine";
+import { QualityDeviationStops } from "@/components/analytics/reports/QualityDeviationStops";
+import { RawMaterialStops } from "@/components/analytics/reports/RawMaterialStops";
 
 function AnalyticsContent() {
   const { 
@@ -69,8 +74,16 @@ function AnalyticsContent() {
     flavorsComparison,
     modelsComparison,
     boxesComparison,
-    isLoading 
+    isLoading: productsLoading 
   } = useProductsIndicators();
+
+  const {
+    totalStops,
+    totalStopTime,
+    stopsComparison,
+    stopTimeComparison,
+    isLoading: stopsLoading
+  } = useStopsIndicators();
 
   return (
     <div className="flex flex-col gap-4 p-4 bg-background">
@@ -184,7 +197,7 @@ function AnalyticsContent() {
               <MostProducedFlavors />
               <MostProducedModels />
               <MostProducedSizes />
-              <MostUsedBoxes />
+              <MostProducedBoxes />
             </div>
           </div>
 
@@ -198,9 +211,47 @@ function AnalyticsContent() {
           </Card>
 
           {/* Sección: Paros */}
-          <Card className="p-4">
-            <h2 className="text-xl font-semibold mb-4">Paros</h2>
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <h2 className="text-lg font-semibold mb-4">Paros</h2>
+            
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 mb-4">
+              <div className="bg-[#fff7e1] p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Total Paros</span>
+                  <span className={cn(
+                    "text-xs",
+                    stopsComparison.isIncrease ? "text-red-600" : "text-green-600"
+                  )}>
+                    {stopsComparison.formattedPercentage}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <span className="text-2xl font-bold">{totalStops.toLocaleString("es-MX")}</span>
+                </div>
+              </div>
+
+              <div className="bg-[#fff7e1] p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Tiempo Total en Paros</span>
+                  <span className={cn(
+                    "text-xs",
+                    stopTimeComparison.isIncrease ? "text-red-600" : "text-green-600"
+                  )}>
+                    {stopTimeComparison.formattedPercentage}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <span className="text-2xl font-bold">{totalStopTime.toLocaleString("es-MX")} min</span>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <StopsByType />
+                <StopsByLine />
+              </div>
               <h3 className="text-lg font-medium">Por Mantenimiento</h3>
               <div className="grid gap-4 md:grid-cols-2">
                 <MaintenanceStopsByLine />
@@ -215,8 +266,13 @@ function AnalyticsContent() {
                 <OperationalStopsBySubsystem />
                 <OperationalStopsBySubsubsystem />
               </div>
+              <h3 className="text-lg font-medium mt-6">Por Calidad</h3>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <QualityDeviationStops />
+                <RawMaterialStops />
+              </div>
             </div>
-          </Card>
+          </div>
 
           {/* Sección: Producción por Cajas */}
           <Card className="p-4">

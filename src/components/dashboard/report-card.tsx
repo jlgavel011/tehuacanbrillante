@@ -10,6 +10,7 @@ interface ReportCardProps {
   icon?: LucideIcon;
   children: ReactNode;
   className?: string;
+  headerClassName?: string;
   headerExtra?: ReactNode;
 }
 
@@ -19,11 +20,12 @@ export function ReportCard({
   icon: Icon,
   children,
   className = "",
+  headerClassName = "bg-blue-50",
   headerExtra,
 }: ReportCardProps) {
   return (
     <Card className={cn("overflow-hidden bg-white", className)}>
-      <div className="bg-blue-50 p-6">
+      <div className={cn("p-6", headerClassName)}>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>{title}</CardTitle>

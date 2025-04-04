@@ -53,6 +53,7 @@ model Sistema {
   lineaProduccionId String        @db.ObjectId
   lineaProduccion  LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
   subsistemas      Subsistema[]
+  paros            Paro[]
 
   @@map("sistemas")
 }
@@ -178,6 +179,8 @@ model Paro {
   produccion        Produccion       @relation(fields: [produccionId], references: [id])
   lineaProduccionId String           @db.ObjectId
   lineaProduccion   LineaProduccion  @relation(fields: [lineaProduccionId], references: [id])
+  sistemaId         String?          @db.ObjectId
+  sistema           Sistema?         @relation(fields: [sistemaId], references: [id])
   subsistemaId      String?          @db.ObjectId
   subsistema        Subsistema?      @relation(fields: [subsistemaId], references: [id])
   subsubsistemaId   String?          @db.ObjectId

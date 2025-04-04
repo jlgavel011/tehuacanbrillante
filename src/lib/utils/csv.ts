@@ -1,57 +1,36 @@
 export function downloadCSV(data: any[], filename: string) {
-  // Obtener los headers del primer objeto
+  if (!data.length) return;
+
+  // Get headers from first object
   const headers = Object.keys(data[0]);
 
-  // Crear las filas del CSV
-  const csvRows = [
-    // Headers en español
-    headers
-      .map((header) => {
-        const headerMap: { [key: string]: string } = {
-          nombre: "Nombre",
-          cantidad: "Cajas Producidas",
-          porcentaje: "% del Total",
-          modelo: "Modelo",
-          sabor: "Sabor",
-          tamaño: "Tamaño",
-          caja: "Unidades/Caja",
-        };
-        return headerMap[header] || header;
-      })
-      .join(","),
-    // Datos
-    ...data.map((row) =>
+  // Convert data to CSV format
+  const csvContent = [
+    // Headers row
+    headers.join(","),
+    // Data rows
+    ...data.map((item) =>
       headers
         .map((header) => {
-          let cell = row[header];
-          
-          // Formatear números
-          if (header === "cantidad") {
-            cell = row[header].toLocaleString("es-MX");
-          } else if (header === "porcentaje") {
-            cell = `${row[header].toFixed(1)}%`;
+          const value = item[header];
+          // Handle values that might contain commas or quotes
+          if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
           }
-
-          // Escapar comas y comillas dobles
-          if (typeof cell === "string" && (cell.includes(",") || cell.includes('"'))) {
-            cell = `"${cell.replace(/"/g, '""')}"`;
-          }
-          
-          return cell ?? "";
+          return value;
         })
         .join(",")
     ),
   ].join("\n");
 
-  // Crear el blob con BOM para Excel
-  const blob = new Blob(["\ufeff" + csvRows], { type: "text/csv;charset=utf-8" });
-  
-  // Crear el link de descarga
+  // Create blob and download
+  const blob = new Blob(["\ufeff" + csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${filename}_${new Date().toISOString().split("T")[0]}.csv`;
-  
-  // Trigger la descarga
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", `${filename}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -1,67 +1,81 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-interface OperationalStopData {
-  name: string;
-  paros: number;
-  tiempo_total: number;
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Get the last 30 days for analysis
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Get date range from query parameters
+    const { searchParams } = new URL(request.url);
+    const fromDate = searchParams.get('from');
+    const toDate = searchParams.get('to');
 
-    // Get the ID of the "Operativo" tipo paro
-    const tipoOperativo = await prisma.tipoParo.findFirst({
+    if (!fromDate || !toDate) {
+      return NextResponse.json(
+        { error: 'Se requieren los parámetros from y to' },
+        { status: 400 }
+      );
+    }
+
+    // Buscar el tipo de paro "Operación"
+    const tipoParo = await prisma.tipoParo.findFirst({
       where: {
-        nombre: "Operativo"
+        nombre: "Operación"
       }
     });
 
-    if (!tipoOperativo) {
-      throw new Error("Tipo de paro 'Operativo' no encontrado");
+    if (!tipoParo) {
+      console.log('No se encontró el tipo de paro Operación');
+      return NextResponse.json(
+        { error: 'No se encontró el tipo de paro Operación' },
+        { status: 404 }
+      );
     }
 
-    // Fetch paros and group by linea
+    // Buscar paros por línea
     const paros = await prisma.paro.groupBy({
       by: ['lineaProduccionId'],
       where: {
-        tipoParoId: tipoOperativo.id,
-        createdAt: {
-          gte: thirtyDaysAgo
-        }
+        AND: [
+          { tipoParoId: tipoParo.id },
+          {
+            createdAt: {
+              gte: new Date(fromDate),
+              lte: new Date(toDate)
+            }
+          }
+        ]
       },
       _count: {
-        _all: true
+        _all: true,
       },
       _sum: {
-        tiempoMinutos: true
+        tiempoMinutos: true,
       }
     });
 
-    // Fetch linea names
-    const lineaIds = paros.map(p => p.lineaProduccionId);
+    // Obtener los nombres de las líneas
     const lineas = await prisma.lineaProduccion.findMany({
       where: {
         id: {
-          in: lineaIds
+          in: paros.map(p => p.lineaProduccionId)
         }
+      },
+      select: {
+        id: true,
+        nombre: true
       }
     });
 
-    // Combine data
-    const result: OperationalStopData[] = paros.map(paro => {
+    // Mapear los resultados
+    const result = paros.map(paro => {
       const linea = lineas.find(l => l.id === paro.lineaProduccionId);
       return {
-        name: linea?.nombre || 'Línea Desconocida',
+        name: linea?.nombre || 'Desconocida',
         paros: paro._count._all,
         tiempo_total: paro._sum.tiempoMinutos || 0
       };
     });
 
-    // Sort by tiempo_total
+    // Ordenar por tiempo total
     result.sort((a, b) => b.tiempo_total - a.tiempo_total);
 
     return NextResponse.json(result);

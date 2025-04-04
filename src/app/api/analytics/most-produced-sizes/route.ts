@@ -2,22 +2,68 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
 interface SizeData {
-  name: string;
-  cajas: number;
+  nombre: string;
+  cantidad: number;
+  porcentaje: number;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Get the last 30 days for analysis
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Obtener los parámetros de fecha de la URL
+    const { searchParams } = new URL(request.url);
+    const fromDate = searchParams.get('from');
+    const toDate = searchParams.get('to');
 
-    // Fetch production data and group by size
-    const produccion = await prisma.produccion.groupBy({
+    if (!fromDate || !toDate) {
+      return NextResponse.json(
+        { error: "Se requieren los parámetros 'from' y 'to'" },
+        { status: 400 }
+      );
+    }
+
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+
+    // Validar que las fechas sean válidas
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+      return NextResponse.json(
+        { error: "Fechas inválidas" },
+        { status: 400 }
+      );
+    }
+
+    console.log("Buscando producciones desde:", from, "hasta:", to);
+
+    // Primero verificar si hay producciones en el período
+    const produccionesCount = await prisma.produccion.count({
+      where: {
+        fechaProduccion: {
+          gte: from,
+          lte: to
+        },
+        estado: {
+          in: ["completada", "en_progreso"]
+        }
+      }
+    });
+
+    console.log("Número de producciones encontradas:", produccionesCount);
+
+    if (produccionesCount === 0) {
+      console.log("No se encontraron producciones en el período seleccionado");
+      return NextResponse.json([]);
+    }
+
+    // Obtener los productos más producidos usando Prisma
+    const productsData = await prisma.produccion.groupBy({
       by: ['productoId'],
       where: {
-        createdAt: {
-          gte: thirtyDaysAgo
+        fechaProduccion: {
+          gte: from,
+          lte: to
+        },
+        estado: {
+          in: ["completada", "en_progreso"]
         }
       },
       _sum: {
@@ -25,12 +71,12 @@ export async function GET() {
       }
     });
 
-    // Fetch productos with their tamaños
-    const productoIds = produccion.map(p => p.productoId);
-    const productos = await prisma.producto.findMany({
+    // Obtener los detalles de los productos
+    const productIds = productsData.map(p => p.productoId);
+    const products = await prisma.producto.findMany({
       where: {
         id: {
-          in: productoIds
+          in: productIds
         }
       },
       include: {
@@ -38,39 +84,38 @@ export async function GET() {
       }
     });
 
-    // Group by tamaño
+    console.log("Productos encontrados:", products.length);
+
+    // Agrupar por tamaño
     const sizeMap = new Map<string, number>();
-    produccion.forEach(prod => {
-      const producto = productos.find(p => p.id === prod.productoId);
-      if (producto?.tamaño) {
-        const currentTotal = sizeMap.get(producto.tamaño.id) || 0;
-        sizeMap.set(producto.tamaño.id, currentTotal + (prod._sum.cajasProducidas || 0));
-      }
+    
+    productsData.forEach(prod => {
+      const product = products.find(p => p.id === prod.productoId);
+      if (!product || !prod._sum.cajasProducidas) return;
+      
+      const sizeName = `${product.tamaño.litros}L`;
+      const currentAmount = sizeMap.get(sizeName) || 0;
+      sizeMap.set(sizeName, currentAmount + prod._sum.cajasProducidas);
     });
 
-    // Fetch tamaño details
-    const tamaños = await prisma.tamaño.findMany({
-      where: {
-        id: {
-          in: Array.from(sizeMap.keys())
-        }
-      }
-    });
+    // Convertir a array y calcular porcentajes
+    const totalProduction = Array.from(sizeMap.values()).reduce((a, b) => a + b, 0);
+    
+    const result: SizeData[] = Array.from(sizeMap.entries())
+      .map(([nombre, cantidad]) => ({
+        nombre,
+        cantidad,
+        porcentaje: (cantidad / totalProduction) * 100
+      }))
+      .sort((a, b) => b.cantidad - a.cantidad);
 
-    // Create final result
-    const result: SizeData[] = tamaños.map(tamaño => ({
-      name: tamaño.nombre || `${tamaño.litros}L`,
-      cajas: sizeMap.get(tamaño.id) || 0
-    }));
-
-    // Sort by cajas in descending order
-    result.sort((a, b) => b.cajas - a.cajas);
+    console.log("Resultado final:", result);
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error fetching most produced sizes:', error);
+    console.error("Error in most-produced-sizes:", error);
     return NextResponse.json(
-      { error: 'Error al obtener los datos de tamaños más producidos' },
+      { error: "Error al obtener los tamaños más producidos" },
       { status: 500 }
     );
   }

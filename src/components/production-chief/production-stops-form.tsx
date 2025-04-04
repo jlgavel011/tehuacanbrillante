@@ -57,6 +57,20 @@ type ProductionOrder = {
   };
 };
 
+type Paro = {
+  id?: string;
+  tiempoMinutos: number;
+  tipoParoId: string;
+  tipoParoNombre?: string;
+  sistemaId?: string;
+  sistemaNombre?: string;
+  subsistemaId?: string;
+  subsubsistemaId?: string;
+  desviacionCalidadId?: string;
+  materiaPrimaId?: string;
+  descripcion?: string;
+};
+
 // Form schema for maintenance stops
 const maintenanceStopSchema = z.object({
   tiempoMinutos: z.string().min(1, {
@@ -245,6 +259,7 @@ export function ProductionStopsForm({ orderId }: ProductionStopsFormProps) {
           tiempoMinutos: parseInt(data.tiempoMinutos),
           tipoParoId: tipoParoMantenimiento.id,
           lineaProduccionId: order?.lineaProduccion.id,
+          sistemaId: data.sistemaId,
           subsistemaId: data.subsistemaId,
           subsubsistemaId: data.subsubsistemaId,
           descripcion: data.descripcion || undefined,
