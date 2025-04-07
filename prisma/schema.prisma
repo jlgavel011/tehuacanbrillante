@@ -151,23 +151,50 @@ model Producto {
 
 // Production models
 model Produccion {
-  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
   numeroOrden       Int
-  cajasProducidas   Int             @default(0)
+  cajasProducidas   Int               @default(0)
   cajasPlanificadas Int
   turno             Int
   fechaProduccion   DateTime
-  lineaProduccionId String          @db.ObjectId
-  lineaProduccion   LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
-  productoId        String          @db.ObjectId
-  producto          Producto        @relation(fields: [productoId], references: [id])
+  lineaProduccionId String            @db.ObjectId
+  lineaProduccion   LineaProduccion   @relation(fields: [lineaProduccionId], references: [id])
+  productoId        String            @db.ObjectId
+  producto          Producto          @relation(fields: [productoId], references: [id])
   paros             Paro[]
-  lastUpdateTime    DateTime?       // Last time the production count was updated
-  estado            String?         @default("pendiente") // pendiente, en_progreso, completada
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  produccionPorHora ProduccionPorHora[]
+  finalizaciones    FinalizacionProduccion[]
+  lastUpdateTime    DateTime?         // Last time the production count was updated
+  estado            String?           @default("pendiente") // pendiente, en_progreso, completada
+  tiempoPlan        Float?            // Estimated production time in hours
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@map("producciones")
+}
+
+model ProduccionPorHora {
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  produccionId    String      @db.ObjectId
+  produccion      Produccion  @relation(fields: [produccionId], references: [id])
+  cajasProducidas Int
+  horaRegistro    DateTime    @default(now()) // The timestamp when this hourly production was recorded
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("produccion_por_hora")
+}
+
+model FinalizacionProduccion {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  produccionId  String      @db.ObjectId
+  produccion    Produccion  @relation(fields: [produccionId], references: [id])
+  tiempoHoras   Float       // Tiempo remanente en horas
+  fechaRegistro DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("finalizacion_produccion")
 }
 
 model Paro {

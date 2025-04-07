@@ -81,6 +81,7 @@ export default function ProductionOrderForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
   const [lineasProduccion, setLineasProduccion] = useState<LineaProduccion[]>([]);
 
   // Initialize form with default values
@@ -94,11 +95,49 @@ export default function ProductionOrderForm() {
     },
   });
 
+  // Watch the lineaProduccionId to filter products
+  const selectedLineaProduccionId = form.watch("lineaProduccionId");
+
+  // Effect to filter products when a production line is selected
+  useEffect(() => {
+    if (selectedLineaProduccionId) {
+      const fetchProductsForLine = async () => {
+        try {
+          const res = await fetch(`/api/production-lines/${selectedLineaProduccionId}/products`);
+          if (res.ok) {
+            const data = await res.json();
+            // Use products that are associated with this production line
+            const productsInLine = Array.isArray(data.productosEnLinea) 
+              ? data.productosEnLinea.map((item: any) => ({
+                  id: item.productoId,
+                  nombre: item.producto.nombre
+                }))
+              : [];
+            setFilteredProductos(productsInLine);
+            
+            // Reset product selection if the current product is not in the filtered list
+            const currentProductId = form.getValues("productoId");
+            if (currentProductId && !productsInLine.some((p: {id: string; nombre: string}) => p.id === currentProductId)) {
+              form.setValue("productoId", "");
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching products for production line:", error);
+          toast.error("No se pudieron cargar los productos para esta línea de producción");
+        }
+      };
+      
+      fetchProductsForLine();
+    } else {
+      setFilteredProductos([]);
+    }
+  }, [selectedLineaProduccionId, form]);
+
   // Fetch products and production lines on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch products
+        // Fetch all products (for reference)
         const productosRes = await fetch("/api/productos");
         if (productosRes.ok) {
           const productosData = await productosRes.json();
@@ -126,77 +165,65 @@ export default function ProductionOrderForm() {
   }, []);
 
   // Handle form submission
-  async function onSubmit(values: ProductionOrderFormValues) {
-    setIsLoading(true);
+  const onSubmit = async (values: ProductionOrderFormValues) => {
     try {
+      setIsLoading(true);
+
+      // Additional validation - make sure product is valid for the selected production line
+      if (filteredProductos.length > 0 && !filteredProductos.some((p: {id: string; nombre: string}) => p.id === values.productoId)) {
+        toast.error("El producto seleccionado no está disponible para esta línea de producción");
+        setIsLoading(false);
+        return;
+      }
+
       const response = await fetch("/api/ordenes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          ...values,
+          // Format the date as ISO string for the API
+          fechaProduccion: values.fechaProduccion.toISOString(),
+        }),
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("La orden de producción ha sido creada exitosamente");
-        router.push("/production-orders");
-        router.refresh();
-      } else {
-        // Handle different error status codes
-        if (response.status === 401) {
-          toast.error("No tienes autorización para crear órdenes. Por favor inicia sesión nuevamente.");
-        } else if (response.status === 403) {
-          toast.error("Tu rol no tiene permisos para crear órdenes de producción.");
-        } else if (response.status === 400) {
-          toast.error(data.error || "Error en los datos proporcionados. Verifica la información e intenta nuevamente.");
-        } else {
-          toast.error(data.error || "Error al crear la orden de producción.");
+      let errorMessage = "Error al crear la orden de producción";
+      
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError);
         }
+        
+        toast.error(errorMessage);
+        setIsLoading(false);
+        return;
       }
+
+      const data = await response.json();
+      toast.success("Orden de producción creada con éxito");
+      router.push("/production-orders");
     } catch (error) {
-      console.error("Error:", error);
-      toast.error("Error de conexión. Por favor verifica tu conexión a internet e intenta nuevamente.");
+      console.error("Error creating production order:", error);
+      const errorMessage = error instanceof Error && error.message 
+        ? error.message 
+        : "Error al crear la orden de producción";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-          {/* Product Selection */}
-          <FormField
-            control={form.control}
-            name="productoId"
-            render={({ field }) => (
-              <FormItem className="space-y-2">
-                <FormLabel className="text-sm font-medium">Producto</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un producto" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {productos.map((producto) => (
-                      <SelectItem key={producto.id} value={producto.id}>
-                        {producto.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormDescription className="text-xs text-muted-foreground">
-                  Selecciona el producto a producir
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Production Line Selection */}
+          {/* Production Line Selection (Now first) */}
           <FormField
             control={form.control}
             name="lineaProduccionId"
@@ -219,6 +246,51 @@ export default function ProductionOrderForm() {
                 </Select>
                 <FormDescription className="text-xs text-muted-foreground">
                   Selecciona la línea de producción
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Product Selection (Now second) */}
+          <FormField
+            control={form.control}
+            name="productoId"
+            render={({ field }) => (
+              <FormItem className="space-y-2">
+                <FormLabel className="text-sm font-medium">Producto</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  disabled={!selectedLineaProduccionId || filteredProductos.length === 0}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue 
+                        placeholder={
+                          !selectedLineaProduccionId 
+                            ? "Primero selecciona una línea" 
+                            : filteredProductos.length === 0 
+                              ? "No hay productos en esta línea" 
+                              : "Selecciona un producto"
+                        } 
+                      />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {filteredProductos.map((producto) => (
+                      <SelectItem key={producto.id} value={producto.id}>
+                        {producto.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription className="text-xs text-muted-foreground">
+                  {!selectedLineaProduccionId 
+                    ? "Primero selecciona una línea de producción" 
+                    : filteredProductos.length === 0
+                      ? "No hay productos asignados a esta línea"
+                      : `Selecciona el producto a producir (${filteredProductos.length} productos disponibles)`}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

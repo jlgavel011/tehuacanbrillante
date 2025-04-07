@@ -26,6 +26,7 @@ export async function GET() {
             fechaProduccion: {
               gte: thirtyDaysAgo,
             },
+        estado: "completada" // Solo considerar producciones completadas,
           },
         },
       },
@@ -36,6 +37,7 @@ export async function GET() {
             fechaProduccion: {
               gte: thirtyDaysAgo,
             },
+        estado: "completada" // Solo considerar producciones completadas,
           },
           select: {
             cajasProducidas: true,

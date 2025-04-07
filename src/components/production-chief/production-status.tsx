@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Clock, ClipboardCheck, AlertTriangle, ArrowRight, Loader2, Plus, Trash2, Pencil, CheckCircle, ArrowLeft, Timer, RefreshCw, PlayCircle } from "lucide-react";
+import { AlertCircle, Clock, ClipboardCheck, AlertTriangle, ArrowRight, Loader2, Plus, Trash2, Pencil, CheckCircle, ArrowLeft, Timer, RefreshCw, PlayCircle, InfoIcon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,14 +17,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "../ui/textarea";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 type ProductionOrder = {
   id: string;
   numeroOrden: number;
-  cajasPlanificadas: number;
   cajasProducidas: number;
-  fechaProduccion: string;
+  cajasPlanificadas: number;
   turno: number;
+  fechaProduccion: string;
   lineaProduccion: {
     id: string;
     nombre: string;
@@ -33,9 +34,24 @@ type ProductionOrder = {
     id: string;
     nombre: string;
     velocidadProduccion?: number;
-    productoId?: string;
+    modelo: {
+      nombre: string;
+    };
+    sabor: {
+      nombre: string;
+    };
+    tamaño: {
+      nombre: string;
+    };
+    caja: {
+      numeroUnidades: number;
+      nombre?: string;
+    };
   };
-  estado?: "pendiente" | "en_progreso" | "completada";
+  paros?: Array<any>;
+  lastUpdateTime?: string; // Última actualización de la producción
+  tiempoPlan?: number; // Tiempo planificado en horas
+  estado?: string;
 };
 
 type StopType = {
@@ -230,7 +246,7 @@ export function ProductionStatus() {
   }, [order?.lineaProduccion?.id, order?.producto?.id]);
 
   // Function to calculate stop minutes based on hourly production
-  const calculateStopMinutes = (boxesProduced: number) => {
+  const calculateStopMinutes = (boxesProduced: number, isFinalizingProduction = false) => {
     // Get the expected production speed (boxes per hour)
     const expectedBoxesPerHour = order?.producto?.velocidadProduccion || 0;
     
@@ -239,32 +255,71 @@ export function ProductionStatus() {
       return 30; // Default to 30 minutes if no valid production speed
     }
     
-    // Calculate how many boxes should have been produced in 60 minutes at full capacity
-    const expectedBoxes = expectedBoxesPerHour;
-    
-    // Calculate the percentage of production achieved
-    const productionPercentage = boxesProduced / expectedBoxes;
-    
-    // Calculate the effective production time in minutes (out of 60 minutes)
-    const effectiveProductionMinutes = productionPercentage * 60;
-    
-    // The stop time is the remaining time out of 60 minutes
-    const stopMinutes = Math.round(60 - effectiveProductionMinutes);
-    
-    console.log("Expected boxes per hour:", expectedBoxesPerHour);
-    console.log("Actual boxes produced:", boxesProduced);
-    console.log("Production percentage:", productionPercentage);
-    console.log("Effective production minutes:", effectiveProductionMinutes);
-    console.log("Calculated stop minutes:", stopMinutes);
-    
-    // Ensure we return a non-negative value
-    return Math.max(0, stopMinutes);
+    // Si estamos finalizando la producción, calcular basado en el tiempo transcurrido desde la última actualización
+    if (isFinalizingProduction && lastUpdateTime) {
+      // Calcular el tiempo transcurrido en minutos
+      const now = new Date();
+      const elapsedMinutes = Math.floor((now.getTime() - lastUpdateTime.getTime()) / (1000 * 60));
+      
+      // No tiene sentido usar menos de 1 minuto o más de 8 horas (un turno completo)
+      const validElapsedMinutes = Math.min(Math.max(1, elapsedMinutes), 480);
+      
+      // Calcular cuántas cajas se esperarían en ese tiempo
+      const expectedBoxesInTime = (expectedBoxesPerHour * validElapsedMinutes) / 60;
+      
+      // Calcular el porcentaje de producción logrado
+      const productionPercentage = boxesProduced / expectedBoxesInTime;
+      
+      // Calcular el tiempo efectivo de producción en minutos
+      const effectiveProductionMinutes = productionPercentage * validElapsedMinutes;
+      
+      // El tiempo de paro es el tiempo restante
+      const stopMinutes = Math.round(validElapsedMinutes - effectiveProductionMinutes);
+      
+      console.log("Finalizando producción - cálculo de tiempo de paro basado en tiempo transcurrido:", {
+        esperadoPorHora: expectedBoxesPerHour,
+        tiempoTranscurridoMinutos: validElapsedMinutes,
+        cajasEsperadas: expectedBoxesInTime,
+        cajasProducidas: boxesProduced,
+        porcentajeProduccion: productionPercentage,
+        tiempoEfectivoMinutos: effectiveProductionMinutes,
+        tiempoParoMinutos: stopMinutes
+      });
+      
+      // Asegurar que retornamos un valor no negativo
+      return Math.max(0, stopMinutes);
+    } else {
+      // Para actualizaciones por hora, seguimos usando el cálculo basado en 60 minutos
+      
+      // Calculate how many boxes should have been produced in 60 minutes at full capacity
+      const expectedBoxes = expectedBoxesPerHour;
+      
+      // Calculate the percentage of production achieved
+      const productionPercentage = boxesProduced / expectedBoxes;
+      
+      // Calculate the effective production time in minutes (out of 60 minutes)
+      const effectiveProductionMinutes = productionPercentage * 60;
+      
+      // The stop time is the remaining time out of 60 minutes
+      const stopMinutes = Math.round(60 - effectiveProductionMinutes);
+      
+      console.log("Actualización por hora - cálculo de tiempo de paro:", {
+        esperadoPorHora: expectedBoxesPerHour,
+        cajasProducidas: boxesProduced,
+        porcentajeProduccion: productionPercentage,
+        tiempoEfectivoMinutos: effectiveProductionMinutes,
+        tiempoParoMinutos: stopMinutes
+      });
+      
+      // Ensure we return a non-negative value
+      return Math.max(0, stopMinutes);
+    }
   };
 
   useEffect(() => {
     // Update stop minutes whenever hourly production changes
     if (hourlyProduction && parseInt(hourlyProduction) > 0 && order?.producto?.velocidadProduccion) {
-      const calculatedStopMinutes = calculateStopMinutes(parseInt(hourlyProduction));
+      const calculatedStopMinutes = calculateStopMinutes(parseInt(hourlyProduction), false);
       setStopMinutes(calculatedStopMinutes);
     } else {
       setStopMinutes(0);
@@ -295,11 +350,18 @@ export function ProductionStatus() {
     if (orderId) {
       fetchOrder();
       fetchStopTypes();
+      // Sistemas, subsistemas, and subsubsistemas will be fetched after the order is loaded
+    }
+  }, [orderId]);
+
+  // Add a new useEffect to fetch systems after the order is loaded
+  useEffect(() => {
+    if (order && order.lineaProduccion && order.lineaProduccion.id) {
       fetchSistemas();
       fetchSubsistemas();
       fetchSubsubsistemas();
     }
-  }, [orderId]);
+  }, [order]);
 
   useEffect(() => {
     if (order) {
@@ -449,7 +511,13 @@ export function ProductionStatus() {
 
   const fetchSistemas = async () => {
     try {
-      const response = await fetch("/api/production-lines/systems");
+      if (!order || !order.lineaProduccion || !order.lineaProduccion.id) {
+        console.warn("No production line ID available for filtering systems");
+        return;
+      }
+
+      const lineaProduccionId = order.lineaProduccion.id;
+      const response = await fetch(`/api/production-lines/systems?productionLineId=${lineaProduccionId}`);
       if (!response.ok) {
         throw new Error("Error al cargar los sistemas");
       }
@@ -560,7 +628,7 @@ export function ProductionStatus() {
 
     // Calculate stop minutes for the hour
     const hourlyProductionValue = parseInt(hourlyProduction);
-    const calculatedStopMinutes = calculateStopMinutes(hourlyProductionValue);
+    const calculatedStopMinutes = calculateStopMinutes(hourlyProductionValue, false);
     
     // Set the final hourly production and remaining downtime minutes
     setFinalHourlyProduction(hourlyProduction);
@@ -665,10 +733,11 @@ export function ProductionStatus() {
 
     // Calculate remaining downtime minutes
     const hourlyProductionValue = parseInt(finalHourlyProduction);
-    const calculatedStopMinutes = calculateStopMinutes(hourlyProductionValue);
+    const calculatedStopMinutes = calculateStopMinutes(hourlyProductionValue, true);
     setRemainingDowntimeMinutes(calculatedStopMinutes);
 
-    // Close hourly update dialog and start paros registration
+    // Close hourly update dialog 
+    setShowFinishDialog(false);
     setShowHourlyUpdate(false);
     
     // Start with Mantenimiento
@@ -697,8 +766,8 @@ export function ProductionStatus() {
       
       setShowAddParoDialog(true);
     } else {
-      // If no stop minutes, just update production
-      completeFinishProduction();
+      // Si no hay tiempo de paro, mostrar el resumen directamente
+      setShowSummaryDialog(true);
     }
   };
 
@@ -714,10 +783,23 @@ export function ProductionStatus() {
       // Determine if this is a finalization or just an hourly update
       const isFinalizingProduction = !showHourlyUpdate;
       
+      // Calcular el tiempo transcurrido en horas desde la última actualización
+      let tiempoTranscurridoHoras = 0;
+      if (isFinalizingProduction && lastUpdateTime) {
+        const ahora = new Date();
+        tiempoTranscurridoHoras = (ahora.getTime() - lastUpdateTime.getTime()) / (1000 * 60 * 60);
+        console.log("Tiempo transcurrido calculado:", {
+          ultimaActualizacion: lastUpdateTime,
+          ahora,
+          tiempoTranscurridoHoras
+        });
+      }
+      
       console.log("Sending production data:", {
         cajasProducidas: totalCajasProducidas + parseInt(finalHourlyProduction),
         paros: allParos,
-        isFinalizingProduction
+        isFinalizingProduction,
+        tiempoTranscurridoHoras
       });
 
       // Use the appropriate endpoint based on whether we're finalizing or updating
@@ -733,7 +815,8 @@ export function ProductionStatus() {
         body: JSON.stringify({
           cajasProducidas: totalCajasProducidas + parseInt(finalHourlyProduction),
           paros: allParos,
-          isFinalizingProduction
+          isFinalizingProduction,
+          tiempoTranscurridoHoras
         }),
       });
         
@@ -1252,8 +1335,9 @@ export function ProductionStatus() {
 
   // Reset hourly production when opening the dialog
   const handleOpenHourlyUpdate = () => {
-    setHourlyProduction("");
+    setFinalHourlyProduction("");
     setShowHourlyUpdate(true);
+    setShowFinishDialog(true);
   };
 
   // Function to store lastUpdateTime in localStorage
@@ -2300,6 +2384,14 @@ export function ProductionStatus() {
                 <Button 
                   variant="default" 
                   onClick={() => {
+                    // Antes de mostrar el resumen, verificar si hay paros registrados con tiempo
+                    // Si no hay, mostrar un mensaje
+                    const totalParosRegistrados = [...parosMantenimiento, ...parosCalidad, ...parosOperacion].length;
+                    if (totalParosRegistrados === 0 && remainingDowntimeMinutes > 0) {
+                      toast.warning("Debe registrar al menos un paro antes de continuar");
+                      return;
+                    }
+                    
                     setShowAddParoDialog(false);
                     setShowSummaryDialog(true);
                   }}
@@ -2335,6 +2427,46 @@ export function ProductionStatus() {
                 placeholder="Ingrese la cantidad final"
               />
             </div>
+            
+            {/* Tiempo remanente cálculo */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right font-medium">
+                Tiempo transcurrido
+              </Label>
+              <div className="col-span-3">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-medium">
+                      {lastUpdateTime ? 
+                        (() => {
+                          const ahora = new Date();
+                          const tiempoTranscurridoMinutos = Math.floor((ahora.getTime() - lastUpdateTime.getTime()) / (1000 * 60));
+                          const horas = Math.floor(tiempoTranscurridoMinutos / 60);
+                          const minutos = tiempoTranscurridoMinutos % 60;
+                          return `${horas}h ${minutos}m`;
+                        })() : 
+                        "No disponible"}
+                    </span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">
+                            Este es el tiempo transcurrido desde la última actualización. 
+                            Se registrará como tiempo real de producción.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <span className="text-xs text-muted-foreground mt-1">
+                    Desde: {lastUpdateTime?.toLocaleString([], {dateStyle: 'short', timeStyle: 'short'})}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter className="flex justify-between">
             <Button 
@@ -2364,7 +2496,52 @@ export function ProductionStatus() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
+      {/* Add Paro Close Confirmation Dialog */}
+      <Dialog open={showAddParoCloseConfirmDialog} onOpenChange={setShowAddParoCloseConfirmDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>¿Está seguro?</DialogTitle>
+            <DialogDescription>
+              Si cierra esta ventana, perderá los datos del paro que está registrando.
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setShowAddParoCloseConfirmDialog(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setShowAddParoCloseConfirmDialog(false);
+                setShowAddParoDialog(false);
+                // Reset current paro if not editing
+                if (editingParoIndex === null) {
+                  const tipoParoId = currentParo?.tipoParoId;
+                  if (tipoParoId) {
+                    setCurrentParo({
+                      tiempoMinutos: 0,
+                      tipoParoId,
+                      sistemaId: "",  // Empty string instead of placeholder
+                      subsistemaId: undefined,  // undefined instead of null
+                      subsubsistemaId: undefined,  // undefined instead of null
+                      descripcion: "",
+                    });
+                  }
+                }
+                setEditingParoIndex(null);
+              }}
+            >
+              Sí, cerrar y perder cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Summary Dialog */}
       <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col">
@@ -2631,51 +2808,6 @@ export function ProductionStatus() {
                 setParosMantenimiento([]);
                 setParosCalidad([]);
                 setParosOperacion([]);
-              }}
-            >
-              Sí, cerrar y perder cambios
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Paro Close Confirmation Dialog */}
-      <Dialog open={showAddParoCloseConfirmDialog} onOpenChange={setShowAddParoCloseConfirmDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>¿Está seguro?</DialogTitle>
-            <DialogDescription>
-              Si cierra esta ventana, perderá los datos del paro que está registrando.
-              Esta acción no se puede deshacer.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => setShowAddParoCloseConfirmDialog(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setShowAddParoCloseConfirmDialog(false);
-                setShowAddParoDialog(false);
-                // Reset current paro if not editing
-                if (editingParoIndex === null) {
-                  const tipoParoId = currentParo?.tipoParoId;
-                  if (tipoParoId) {
-                    setCurrentParo({
-                      tiempoMinutos: 0,
-                      tipoParoId,
-                      sistemaId: "",  // Empty string instead of placeholder
-                      subsistemaId: undefined,  // undefined instead of null
-                      subsubsistemaId: undefined,  // undefined instead of null
-                      descripcion: "",
-                    });
-                  }
-                }
-                setEditingParoIndex(null);
               }}
             >
               Sí, cerrar y perder cambios

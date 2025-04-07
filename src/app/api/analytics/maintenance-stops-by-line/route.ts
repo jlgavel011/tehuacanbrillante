@@ -1,60 +1,113 @@
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { NextResponse } from "next/server";
 
-export async function GET(request: Request) {
+interface FormattedData {
+  name: string;
+  cantidad: number;
+  tiempo_total: number;
+  porcentaje: number;
+}
+
+export async function GET(request: NextRequest) {
   try {
-    // Get date range from query parameters
-    const { searchParams } = new URL(request.url);
-    const fromDate = searchParams.get('from');
-    const toDate = searchParams.get('to');
+    const searchParams = request.nextUrl.searchParams;
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
 
-    if (!fromDate || !toDate) {
+    if (!from || !to) {
       return NextResponse.json(
-        { error: 'Se requieren los parámetros from y to' },
+        { error: "Fechas no proporcionadas" },
         { status: 400 }
       );
     }
 
-    // Get all production lines with their maintenance stops
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+
+    // Obtener todas las líneas de producción
     const lineas = await prisma.lineaProduccion.findMany({
-      include: {
-        paros: {
-          where: {
-            createdAt: {
-              gte: new Date(fromDate),
-              lte: new Date(toDate)
-            },
-            tipoParo: {
-              nombre: "Mantenimiento"
-            }
-          },
-          select: {
-            tiempoMinutos: true
-          }
-        }
+      select: {
+        id: true,
+        nombre: true,
       },
       orderBy: {
-        nombre: 'asc'
+        nombre: 'asc',
+      },
+    });
+
+    // Crear un mapa para almacenar los datos de paros por línea
+    const lineasMap = new Map(lineas.map((l) => [l.id, { 
+      id: l.id, 
+      nombre: l.nombre, 
+      cantidad: 0, 
+      tiempo_total: 0 
+    }]));
+
+    // Obtener los paros de mantenimiento en el periodo especificado
+    const tipoParoMantenimiento = await prisma.tipoParo.findFirst({
+      where: {
+        nombre: "Mantenimiento",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!tipoParoMantenimiento) {
+      return NextResponse.json([]);
+    }
+
+    const result = await prisma.paro.groupBy({
+      by: ["lineaProduccionId"],
+      where: {
+        fechaInicio: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        tipoParoId: tipoParoMantenimiento.id,
+      },
+      _sum: {
+        tiempoMinutos: true,
+      },
+      _count: {
+        _all: true,
+      },
+    });
+
+    // Actualizar el mapa con los datos de paros reales
+    result.forEach((item) => {
+      const lineaData = lineasMap.get(item.lineaProduccionId);
+      if (lineaData) {
+        lineaData.cantidad = item._count._all;
+        lineaData.tiempo_total = item._sum?.tiempoMinutos || 0;
       }
     });
 
-    // Calculate totals for each line
-    const result = lineas.map(linea => {
-      return {
-        name: linea.nombre,
-        paros: linea.paros.length,
-        tiempo_total: linea.paros.reduce((acc, paro) => acc + (paro.tiempoMinutos || 0), 0)
-      };
-    });
+    // Calcular el total para los porcentajes
+    const totalTiempo = Array.from(lineasMap.values()).reduce(
+      (acc, curr) => acc + curr.tiempo_total,
+      0
+    );
 
-    // Sort by total time in descending order
-    result.sort((a, b) => b.tiempo_total - a.tiempo_total);
+    // Convertir el mapa a un array de resultados formateados
+    const formattedData = Array.from(lineasMap.values()).map((item): FormattedData => ({
+      name: item.nombre,
+      cantidad: item.cantidad,
+      tiempo_total: item.tiempo_total,
+      porcentaje:
+        totalTiempo > 0
+          ? (item.tiempo_total / totalTiempo) * 100
+          : 0,
+    }));
 
-    return NextResponse.json(result);
+    // Ordenar por tiempo total de paros (descendente)
+    formattedData.sort((a: FormattedData, b: FormattedData) => b.tiempo_total - a.tiempo_total);
+
+    return NextResponse.json(formattedData);
   } catch (error) {
-    console.error('Error fetching maintenance stops by line:', error);
+    console.error("Error al obtener datos de paros de mantenimiento por línea:", error);
     return NextResponse.json(
-      { error: 'Error al obtener los datos de paros por mantenimiento' },
+      { error: "Error al procesar la solicitud" },
       { status: 500 }
     );
   }

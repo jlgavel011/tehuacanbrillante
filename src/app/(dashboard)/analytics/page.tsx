@@ -3,14 +3,10 @@
 import { useState } from "react";
 import { Card } from "@tremor/react";
 import { ProductionChiefPerformance } from "@/components/analytics/reports/ProductionChiefPerformance";
-import { MostEfficientDays } from "@/components/analytics/reports/MostEfficientDays";
-import { MostEfficientHours } from "@/components/analytics/reports/MostEfficientHours";
 import { MostProducedProducts } from "@/components/analytics/reports/MostProducedProducts";
 import { MostProducedFlavors } from "@/components/analytics/reports/MostProducedFlavors";
 import { MostProducedModels } from "@/components/analytics/reports/MostProducedModels";
 import { MostProducedSizes } from "@/components/analytics/reports/MostProducedSizes";
-import { RawMaterialsWithIssues } from "@/components/analytics/reports/RawMaterialsWithIssues";
-import { QualityDeviationsImpact } from "@/components/analytics/reports/QualityDeviationsImpact";
 import { TotalStops } from "@/components/analytics/reports/TotalStops";
 import { StopsByType } from "@/components/analytics/reports/StopsByType";
 import { MaintenanceStopsByLine } from "@/components/analytics/reports/MaintenanceStopsByLine";
@@ -27,16 +23,10 @@ import { ProductionByFlavor } from "@/components/analytics/reports/ProductionByF
 import { ProductionByModel } from "@/components/analytics/reports/ProductionByModel";
 import { ProductionBySize } from "@/components/analytics/reports/ProductionBySize";
 import { ProductionByBoxType } from "@/components/analytics/reports/ProductionByBoxType";
-import { TotalProductionByProductLiters } from "@/components/analytics/reports/TotalProductionByProductLiters";
-import { ProductionByFlavorLiters } from "@/components/analytics/reports/ProductionByFlavorLiters";
-import { ProductionByModelLiters } from "@/components/analytics/reports/ProductionByModelLiters";
-import { ProductionBySizeLiters } from "@/components/analytics/reports/ProductionBySizeLiters";
-import { ProductionByLineLiters } from "@/components/analytics/reports/ProductionByLineLiters";
 import { TotalProductionByProductBoxes } from "@/components/analytics/reports/TotalProductionByProductBoxes";
 import { ProductionByFlavorBoxes } from "@/components/analytics/reports/ProductionByFlavorBoxes";
 import { ProductionByModelBoxes } from "@/components/analytics/reports/ProductionByModelBoxes";
 import { ProductionBySizeBoxes } from "@/components/analytics/reports/ProductionBySizeBoxes";
-import { LineChiefPerformance } from "@/components/analytics/reports/LineChiefPerformance";
 import { StopsBySystem } from "@/components/analytics/reports/StopsBySystem";
 import { StopsByRawMaterial } from "@/components/analytics/reports/StopsByRawMaterial";
 import { StopsByQualityDeviation } from "@/components/analytics/reports/StopsByQualityDeviation";
@@ -54,6 +44,20 @@ import { useStopsIndicators } from "@/hooks/useStopsIndicators";
 import { StopsByLine } from "@/components/analytics/reports/StopsByLine";
 import { QualityDeviationStops } from "@/components/analytics/reports/QualityDeviationStops";
 import { RawMaterialStops } from "@/components/analytics/reports/RawMaterialStops";
+import { useProductionIndicators } from "@/hooks/useProductionIndicators";
+import { ProductionEfficiency } from "@/components/analytics/reports/ProductionEfficiency";
+import { EfficiencyByLine } from "@/components/analytics/reports/EfficiencyByLine";
+import { EfficiencyByShift } from "@/components/analytics/reports/EfficiencyByShift";
+import { HourlyProductionEfficiency } from '@/components/analytics/reports/HourlyProductionEfficiency';
+import RealVsPlannedTime from "@/components/analytics/reports/RealVsPlannedTime";
+import RealVsPlannedTimeByLine from "@/components/analytics/reports/RealVsPlannedTimeByLine";
+import RealVsPlannedTimeByShift from "@/components/analytics/reports/RealVsPlannedTimeByShift";
+import RealVsPlannedTimeByOperator from "@/components/analytics/reports/RealVsPlannedTimeByOperator";
+import { PlannedVsProducedBoxesByLineChief } from "@/components/analytics/reports/PlannedVsProducedBoxesByLineChief";
+import { PlannedVsProducedBoxesByLine } from "@/components/analytics/reports/PlannedVsProducedBoxesByLine";
+import { PlannedVsProducedBoxesByShift } from "@/components/analytics/reports/PlannedVsProducedBoxesByShift";
+import { ProductionHeatmapByDay } from "@/components/analytics/reports/ProductionHeatmapByDay";
+import { ProductionHeatmapByHour } from "@/components/analytics/reports/ProductionHeatmapByHour";
 
 function AnalyticsContent() {
   const { 
@@ -69,7 +73,7 @@ function AnalyticsContent() {
     totalProducts, 
     totalFlavors, 
     totalModels, 
-    totalBoxes, 
+    totalBoxes: totalProductBoxes, 
     productsComparison,
     flavorsComparison,
     modelsComparison,
@@ -84,6 +88,17 @@ function AnalyticsContent() {
     stopTimeComparison,
     isLoading: stopsLoading
   } = useStopsIndicators();
+
+  const {
+    totalBoxes,
+    totalLiters,
+    isLoading: productionLoading,
+    error: productionError,
+    averageEfficiency,
+    averageHourlyEfficiency,
+    timeEfficiency,
+    timeInefficiency
+  } = useProductionIndicators();
 
   return (
     <div className="flex flex-col gap-4 p-4 bg-background">
@@ -114,27 +129,160 @@ function AnalyticsContent() {
             </TabsTrigger>
           </TabsList>
         </div>
+        
+        {/* Enlaces rápidos a secciones */}
+        <div className="flex flex-wrap gap-2 bg-white rounded-lg p-3 shadow-sm mb-4">
+          <a href="#eficiencia" className="px-3 py-1.5 rounded-full bg-[#e8f6e9] text-sm font-medium hover:bg-[#d1f0d5] transition-colors">
+            Eficiencia de Producción
+          </a>
+          <a href="#usuarios" className="px-3 py-1.5 rounded-full bg-[#f9e8f7] text-sm font-medium hover:bg-[#f5d6f0] transition-colors">
+            Usuarios y Días
+          </a>
+          <a href="#productos" className="px-3 py-1.5 rounded-full bg-[#e2f1f8] text-sm font-medium hover:bg-[#cbe6f2] transition-colors">
+            Productos
+          </a>
+          <a href="#paros" className="px-3 py-1.5 rounded-full bg-[#fff7e1] text-sm font-medium hover:bg-[#ffefc0] transition-colors">
+            Paros
+          </a>
+        </div>
 
         <TabsContent value="strategic" className="space-y-4 mt-2">
-          {/* Usuarios y Eficiencia */}
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <h2 className="text-lg font-semibold mb-4">Usuarios y Eficiencia</h2>
+          {/* Sección: Eficiencia de producción */}
+          <div id="eficiencia" className="bg-white rounded-lg shadow-sm p-4">
+            <h2 className="text-lg font-semibold mb-4 p-2 rounded-md bg-[#e8f6e9]">Eficiencia de Producción</h2>
+            
+            {/* Nuevas tarjetas de resumen */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-[#e8f6e9] p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Cumplimiento al Plan</span>
+                </div>
+                <div className="mt-2 flex items-center">
+                  <span className="text-2xl font-bold text-green-700">{productionLoading ? '-' : `${(averageEfficiency * 100).toFixed(1)}%`}</span>
+                  <span className="ml-2 text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                    Producción vs Plan
+                  </span>
+                </div>
+              </div>
+              
+              <div className="bg-[#e8f6e9] p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Eficiencia Velocidad de Líneas</span>
+                </div>
+                <div className="mt-2 flex items-center">
+                  <span className="text-2xl font-bold text-green-700">{productionLoading ? '-' : `${(averageHourlyEfficiency * 100).toFixed(1)}%`}</span>
+                  <span className="ml-2 text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                    Cajas por Hora
+                  </span>
+                </div>
+              </div>
+              
+              <div className="bg-[#e8f6e9] p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Eficiencia Tiempo de Producción</span>
+                </div>
+                <div className="mt-2 flex items-center">
+                  {timeEfficiency < 0 ? (
+                    <>
+                      <span className="text-2xl font-bold text-green-700">
+                        {productionLoading ? '-' : `${(timeEfficiency * -1).toFixed(1)}%`}
+                      </span>
+                      <span className="ml-2 text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                        Eficiencia
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-2xl font-bold text-red-700">
+                        {productionLoading ? '-' : `${timeInefficiency.toFixed(1)}%`}
+                      </span>
+                      <span className="ml-2 text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
+                        Ineficiencia
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            
             <div className="grid gap-4 md:grid-cols-2">
-              <LineChiefPerformance />
-              <MostEfficientDays />
-              <MostEfficientHours />
+              {/* Eficiencia de Producción a lo largo del tiempo (ancho completo) */}
+              <div className="col-span-1 md:col-span-2">
+                <ProductionEfficiency />
+              </div>
+              
+              {/* Línea 1 */}
+              <RealVsPlannedTime />
+              <HourlyProductionEfficiency />
+              
+              {/* Línea 2 */}
+              <PlannedVsProducedBoxesByLine />
+              <RealVsPlannedTimeByLine />
+              
+              {/* Línea 3 */}
+              <PlannedVsProducedBoxesByShift />
+              <RealVsPlannedTimeByShift />
+            </div>
+          </div>
+
+          {/* Usuarios y Eficiencia */}
+          <div id="usuarios" className="bg-white rounded-lg shadow-sm p-4">
+            <h2 className="text-lg font-semibold mb-4 p-2 rounded-md bg-[#f9e8f7]">Usuarios y Días</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <PlannedVsProducedBoxesByLineChief />
+              <RealVsPlannedTimeByOperator />
+              <ProductionHeatmapByDay />
+              <ProductionHeatmapByHour />
             </div>
           </div>
 
           {/* Productos */}
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <h2 className="text-lg font-semibold mb-4">Productos</h2>
+          <div id="productos" className="bg-white rounded-lg shadow-sm p-4">
+            <h2 className="text-lg font-semibold mb-4 p-2 rounded-md bg-[#e2f1f8]">Productos</h2>
             
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Total Productos</span>
+                  <span className="text-sm text-muted-foreground">Total litros producidos</span>
+                  {productionLoading ? (
+                    <div className="h-4 w-16 animate-pulse bg-blue-100 rounded"></div>
+                  ) : productionError ? (
+                    <span className="text-xs text-red-500">Error al cargar</span>
+                  ) : null}
+                </div>
+                <div className="mt-2">
+                  {productionLoading ? (
+                    <div className="h-8 w-32 animate-pulse bg-blue-100 rounded"></div>
+                  ) : productionError ? (
+                    <span className="text-2xl font-bold text-red-500">Error</span>
+                  ) : (
+                    <span className="text-2xl font-bold">{totalLiters.toLocaleString()} L</span>
+                  )}
+                </div>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Total cajas producidas</span>
+                  {productionLoading ? (
+                    <div className="h-4 w-16 animate-pulse bg-blue-100 rounded"></div>
+                  ) : productionError ? (
+                    <span className="text-xs text-red-500">Error al cargar</span>
+                  ) : null}
+                </div>
+                <div className="mt-2">
+                  {productionLoading ? (
+                    <div className="h-8 w-32 animate-pulse bg-blue-100 rounded"></div>
+                  ) : productionError ? (
+                    <span className="text-2xl font-bold text-red-500">Error</span>
+                  ) : (
+                    <span className="text-2xl font-bold">{totalBoxes.toLocaleString()}</span>
+                  )}
+                </div>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Tipos de productos producidos</span>
                   <span className={cn(
                     "text-xs",
                     productsComparison.isIncrease ? "text-green-600" : "text-red-600"
@@ -144,48 +292,6 @@ function AnalyticsContent() {
                 </div>
                 <div className="mt-2">
                   <span className="text-2xl font-bold">{totalProducts.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Total Sabores</span>
-                  <span className={cn(
-                    "text-xs",
-                    flavorsComparison.isIncrease ? "text-green-600" : "text-red-600"
-                  )}>
-                    {flavorsComparison.formattedPercentage}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <span className="text-2xl font-bold">{totalFlavors.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Total Modelos</span>
-                  <span className={cn(
-                    "text-xs",
-                    modelsComparison.isIncrease ? "text-green-600" : "text-red-600"
-                  )}>
-                    {modelsComparison.formattedPercentage}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <span className="text-2xl font-bold">{totalModels.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Total Cajas</span>
-                  <span className={cn(
-                    "text-xs",
-                    boxesComparison.isIncrease ? "text-green-600" : "text-red-600"
-                  )}>
-                    {boxesComparison.formattedPercentage}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <span className="text-2xl font-bold">{totalBoxes.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -201,18 +307,9 @@ function AnalyticsContent() {
             </div>
           </div>
 
-          {/* Sección: Calidad */}
-          <Card className="p-4">
-            <h2 className="text-xl font-semibold mb-4">Calidad</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <QualityDeviationsImpact />
-              <RawMaterialsWithIssues />
-            </div>
-          </Card>
-
           {/* Sección: Paros */}
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <h2 className="text-lg font-semibold mb-4">Paros</h2>
+          <div id="paros" className="bg-white rounded-lg shadow-sm p-4">
+            <h2 className="text-lg font-semibold mb-4 p-2 rounded-md bg-[#fff7e1]">Paros</h2>
             
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 mb-4">
@@ -273,30 +370,6 @@ function AnalyticsContent() {
               </div>
             </div>
           </div>
-
-          {/* Sección: Producción por Cajas */}
-          <Card className="p-4">
-            <h2 className="text-xl font-semibold mb-4">Producción por Cajas</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <TotalProductionByProductBoxes />
-              <ProductionByFlavorBoxes />
-              <ProductionByModelBoxes />
-              <ProductionBySizeBoxes />
-              <ProductionByBoxType />
-            </div>
-          </Card>
-
-          {/* Sección: Producción por Litros */}
-          <Card className="p-4">
-            <h2 className="text-xl font-semibold mb-4">Producción por Litros</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <TotalProductionByProductLiters />
-              <ProductionByFlavorLiters />
-              <ProductionByModelLiters />
-              <ProductionBySizeLiters />
-              <ProductionByLineLiters />
-            </div>
-          </Card>
         </TabsContent>
 
         <TabsContent value="detailed" className="space-y-4">

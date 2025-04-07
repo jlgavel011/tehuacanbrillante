@@ -20,11 +20,15 @@ import { AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { downloadCSV } from "@/lib/utils/csv";
+import { formatNumber } from "@/lib/utils/formatters";
 
 interface FlavorData {
+  id?: string;
   nombre: string;
   cantidad: number;
-  porcentaje: number;
+  litros: number;
+  porcentajeCajas: number;
+  porcentajeLitros: number;
 }
 
 export default function FlavorsReport() {
@@ -48,11 +52,61 @@ export default function FlavorsReport() {
           to: date.to.toISOString(),
         });
 
-        const response = await fetch(`/api/analytics/most-produced-flavors?${params}`);
-        if (!response.ok) throw new Error("Error al cargar los datos");
-        const result = await response.json();
-        setData(result);
-        setFilteredData(result);
+        // Fetch boxes data
+        const boxesResponse = await fetch(`/api/analytics/most-produced-flavors?${params}`);
+        if (!boxesResponse.ok) throw new Error("Error al cargar los datos de cajas");
+        const boxesResult = await boxesResponse.json();
+        
+        // Fetch liters data
+        const litersResponse = await fetch(`/api/analytics/most-produced-flavors-liters?${params}`);
+        if (!litersResponse.ok) throw new Error("Error al cargar los datos de litros");
+        const litersResult = await litersResponse.json();
+
+        // Combinar los datos
+        const saboresMap = new Map<string, FlavorData>();
+        
+        // Primero agregar todos los datos de cajas
+        boxesResult.forEach((item: any) => {
+          saboresMap.set(item.nombre, {
+            id: item.id,
+            nombre: item.nombre,
+            cantidad: item.cantidad,
+            litros: 0,
+            porcentajeCajas: item.porcentaje,
+            porcentajeLitros: 0
+          });
+        });
+        
+        // Luego agregar o actualizar con los datos de litros
+        litersResult.forEach((item: any) => {
+          if (saboresMap.has(item.nombre)) {
+            // Actualizar un sabor existente
+            const existingData = saboresMap.get(item.nombre)!;
+            existingData.litros = item.litros;
+            existingData.porcentajeLitros = item.porcentaje;
+          } else {
+            // Agregar un nuevo sabor
+            saboresMap.set(item.nombre, {
+              id: item.id,
+              nombre: item.nombre,
+              cantidad: 0,
+              litros: item.litros,
+              porcentajeCajas: 0,
+              porcentajeLitros: item.porcentaje
+            });
+          }
+        });
+        
+        // Convertir el mapa a array
+        const combinedData = Array.from(saboresMap.values());
+        
+        // Ordenar por la suma de los porcentajes (para priorizar los sabores relevantes en ambas métricas)
+        combinedData.sort((a, b) => 
+          (b.porcentajeCajas + b.porcentajeLitros) - (a.porcentajeCajas + a.porcentajeLitros)
+        );
+        
+        setData(combinedData);
+        setFilteredData(combinedData);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error desconocido");
       } finally {
@@ -64,15 +118,15 @@ export default function FlavorsReport() {
 
   // Aplicar filtro de búsqueda
   useEffect(() => {
-    let filtered = [...data];
-
     if (searchTerm) {
-      filtered = filtered.filter((item) =>
-        item.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+      const searchTermLower = searchTerm.toLowerCase();
+      const filtered = data.filter((item) => 
+        item.nombre.toLowerCase().includes(searchTermLower)
       );
+      setFilteredData(filtered);
+    } else {
+      setFilteredData(data);
     }
-
-    setFilteredData(filtered);
   }, [data, searchTerm]);
 
   const resetFilters = () => {
@@ -81,6 +135,18 @@ export default function FlavorsReport() {
 
   const handleGoBack = () => {
     router.back();
+  };
+
+  const handleDownload = () => {
+    const dataToDownload = filteredData.map(item => ({
+      "Sabor": item.nombre,
+      "Cajas Producidas": item.cantidad,
+      "Litros Producidos": item.litros,
+      "% Cajas": `${item.porcentajeCajas.toFixed(1)}%`,
+      "% Litros": `${item.porcentajeLitros.toFixed(1)}%`
+    }));
+    
+    downloadCSV(dataToDownload, "reporte_sabores_completo");
   };
 
   if (loading) {
@@ -112,6 +178,8 @@ export default function FlavorsReport() {
     );
   }
 
+  const hasNoData = data.length === 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -137,11 +205,16 @@ export default function FlavorsReport() {
       <Card className="p-6">
         <div className="space-y-6">
           {error ? (
-            <div className="text-red-500">{error}</div>
-          ) : data.length === 0 ? (
-            <div className="text-muted-foreground">
-              No hay datos disponibles para el período seleccionado
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : hasNoData ? (
+            <Alert>
+              <AlertDescription>
+                No hay datos disponibles para el período seleccionado
+              </AlertDescription>
+            </Alert>
           ) : (
             <>
               <div className="flex flex-col gap-4">
@@ -158,7 +231,7 @@ export default function FlavorsReport() {
                     </Button>
                     <Button
                       variant="default"
-                      onClick={() => downloadCSV(filteredData, "reporte_sabores")}
+                      onClick={handleDownload}
                       className="gap-2"
                     >
                       <Download className="h-4 w-4" />
@@ -167,28 +240,45 @@ export default function FlavorsReport() {
                   </div>
                 </div>
               </div>
-
+              
+              {/* Tabla combinada */}
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Sabor</TableHead>
                       <TableHead className="text-right">Cajas Producidas</TableHead>
-                      <TableHead className="text-right">% del Total</TableHead>
+                      <TableHead className="text-right">% Cajas</TableHead>
+                      <TableHead className="text-right">Litros Producidos</TableHead>
+                      <TableHead className="text-right">% Litros</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredData.map((item) => (
-                      <TableRow key={item.nombre}>
-                        <TableCell>{item.nombre}</TableCell>
-                        <TableCell className="text-right">
-                          {item.cantidad.toLocaleString("es-MX")}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.porcentaje.toFixed(1)}%
+                    {filteredData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                          No hay datos disponibles con los filtros aplicados
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      filteredData.map((item) => (
+                        <TableRow key={item.id || item.nombre}>
+                          <TableCell>{item.nombre}</TableCell>
+                          <TableCell className="text-right">
+                            {formatNumber(item.cantidad)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.porcentajeCajas.toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatNumber(item.litros)} L
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.porcentajeLitros.toFixed(1)}%
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>

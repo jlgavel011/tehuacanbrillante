@@ -1,88 +1,118 @@
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { NextResponse } from "next/server";
 
-export async function GET(request: Request) {
+interface FormattedData {
+  name: string;
+  paros: number;
+  tiempo_total: number;
+  porcentaje: number;
+}
+
+export async function GET(request: NextRequest) {
   try {
-    // Get date range from query parameters
-    const { searchParams } = new URL(request.url);
-    const fromDate = searchParams.get('from');
-    const toDate = searchParams.get('to');
+    const searchParams = request.nextUrl.searchParams;
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
 
-    if (!fromDate || !toDate) {
+    if (!from || !to) {
       return NextResponse.json(
-        { error: 'Se requieren los parámetros from y to' },
+        { error: "Fechas no proporcionadas" },
         { status: 400 }
       );
     }
 
-    // Buscar el tipo de paro "Operación"
-    const tipoParo = await prisma.tipoParo.findFirst({
-      where: {
-        nombre: "Operación"
-      }
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+
+    // Obtener todas las líneas de producción
+    const lineas = await prisma.lineaProduccion.findMany({
+      select: {
+        id: true,
+        nombre: true,
+      },
+      orderBy: {
+        nombre: 'asc',
+      },
     });
 
-    if (!tipoParo) {
-      console.log('No se encontró el tipo de paro Operación');
+    // Crear un mapa para almacenar los datos de paros por línea
+    const lineasMap = new Map(lineas.map((l) => [l.id, { 
+      id: l.id, 
+      nombre: l.nombre, 
+      paros: 0, 
+      tiempo_total: 0 
+    }]));
+
+    // Obtener los paros operativos en el periodo especificado
+    const tipoParoOperativo = await prisma.tipoParo.findFirst({
+      where: {
+        nombre: "Operación",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!tipoParoOperativo) {
       return NextResponse.json(
-        { error: 'No se encontró el tipo de paro Operación' },
+        { error: "No se encontró el tipo de paro Operación" },
         { status: 404 }
       );
     }
 
-    // Buscar paros por línea
-    const paros = await prisma.paro.groupBy({
-      by: ['lineaProduccionId'],
+    const result = await prisma.paro.groupBy({
+      by: ["lineaProduccionId"],
       where: {
-        AND: [
-          { tipoParoId: tipoParo.id },
-          {
-            createdAt: {
-              gte: new Date(fromDate),
-              lte: new Date(toDate)
-            }
-          }
-        ]
+        fechaInicio: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        tipoParoId: tipoParoOperativo.id,
+      },
+      _sum: {
+        tiempoMinutos: true,
       },
       _count: {
         _all: true,
       },
-      _sum: {
-        tiempoMinutos: true,
+    });
+
+    // Actualizar el mapa con los datos de paros reales
+    result.forEach((item) => {
+      const lineaData = lineasMap.get(item.lineaProduccionId);
+      if (lineaData) {
+        lineaData.paros = item._count?._all || 0;
+        lineaData.tiempo_total = item._sum?.tiempoMinutos || 0;
       }
     });
 
-    // Obtener los nombres de las líneas
-    const lineas = await prisma.lineaProduccion.findMany({
-      where: {
-        id: {
-          in: paros.map(p => p.lineaProduccionId)
-        }
-      },
-      select: {
-        id: true,
-        nombre: true
-      }
-    });
+    // Calcular el total para los porcentajes
+    const totalTiempo = Array.from(lineasMap.values()).reduce(
+      (acc, curr) => acc + curr.tiempo_total,
+      0
+    );
 
-    // Mapear los resultados
-    const result = paros.map(paro => {
-      const linea = lineas.find(l => l.id === paro.lineaProduccionId);
-      return {
-        name: linea?.nombre || 'Desconocida',
-        paros: paro._count._all,
-        tiempo_total: paro._sum.tiempoMinutos || 0
-      };
-    });
+    // Convertir el mapa a un array de resultados formateados
+    const formattedData = Array.from(lineasMap.values())
+      .filter(item => item.paros > 0) // Solo incluir líneas con paros
+      .map((item): FormattedData => ({
+        name: item.nombre,
+        paros: item.paros,
+        tiempo_total: item.tiempo_total,
+        porcentaje:
+          totalTiempo > 0
+            ? (item.tiempo_total / totalTiempo) * 100
+            : 0,
+      }));
 
-    // Ordenar por tiempo total
-    result.sort((a, b) => b.tiempo_total - a.tiempo_total);
+    // Ordenar por tiempo total de paros (descendente)
+    formattedData.sort((a: FormattedData, b: FormattedData) => b.tiempo_total - a.tiempo_total);
 
-    return NextResponse.json(result);
+    return NextResponse.json(formattedData);
   } catch (error) {
-    console.error('Error fetching operational stops by line:', error);
+    console.error("Error al obtener datos de paros operativos por línea:", error);
     return NextResponse.json(
-      { error: 'Error al obtener los datos de paros por operación' },
+      { error: "Error al procesar la solicitud" },
       { status: 500 }
     );
   }

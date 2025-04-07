@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth-options";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/db/prisma";
 
 export async function POST(
   request: NextRequest,
@@ -39,6 +37,43 @@ export async function POST(
         { message: "Orden de producción no encontrada" },
         { status: 404 }
       );
+    }
+
+    // Calculate the increment in production since the last update
+    const cajasPrevias = order.cajasProducidas || 0;
+    const incrementoCajas = cajasProducidas - cajasPrevias;
+    
+    console.log("Production increment calculation:", {
+      orderId,
+      cajasPrevias,
+      cajasProducidas,
+      incrementoCajas
+    });
+    
+    // Record the hourly production data if there's an increment
+    if (incrementoCajas > 0) {
+      try {
+        console.log("Creating hourly production record with data:", {
+          produccionId: orderId,
+          cajasProducidas: incrementoCajas,
+          horaRegistro: new Date()
+        });
+        
+        const produccionPorHora = await prisma.produccionPorHora.create({
+          data: {
+            produccionId: orderId,
+            cajasProducidas: incrementoCajas,
+            horaRegistro: new Date()
+          }
+        });
+        
+        console.log("Successfully created hourly production record:", produccionPorHora);
+      } catch (error) {
+        console.error("Error creating hourly production record:", error);
+        // Continue with the update even if there's an error with the hourly record
+      }
+    } else {
+      console.log("No increment in production, skipping hourly record");
     }
 
     // Update the order with the new production count

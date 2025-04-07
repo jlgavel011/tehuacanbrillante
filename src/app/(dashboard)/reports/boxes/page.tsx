@@ -20,11 +20,14 @@ import { AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { downloadCSV } from "@/lib/utils/csv";
+import { formatNumber } from "@/lib/utils/formatters";
 
 interface BoxData {
   nombre: string;
   cantidad: number;
-  porcentaje: number;
+  porcentajeCajas: number;
+  litros: number;
+  porcentajeLitros: number;
 }
 
 export default function BoxesReport() {
@@ -48,9 +51,54 @@ export default function BoxesReport() {
           to: date.to.toISOString(),
         });
 
-        const response = await fetch(`/api/analytics/most-produced-boxes?${params}`);
-        if (!response.ok) throw new Error("Error al cargar los datos");
-        const result = await response.json();
+        // Fetch both datasets in parallel
+        const [boxesResponse, litersResponse] = await Promise.all([
+          fetch(`/api/analytics/most-produced-boxes?${params}`),
+          fetch(`/api/analytics/most-produced-boxes-liters?${params}`)
+        ]);
+
+        if (!boxesResponse.ok) throw new Error("Error al cargar los datos de cajas");
+        if (!litersResponse.ok) throw new Error("Error al cargar los datos de litros");
+
+        const boxesData = await boxesResponse.json();
+        const litersData = await litersResponse.json();
+
+        // Combine the data into a single dataset
+        const combinedData: BoxData[] = [];
+        const boxMap = new Map<string, BoxData>();
+
+        // First process boxes data
+        boxesData.forEach((item: any) => {
+          boxMap.set(item.nombre, {
+            nombre: item.nombre,
+            cantidad: item.cantidad,
+            porcentajeCajas: item.porcentaje,
+            litros: 0,
+            porcentajeLitros: 0
+          });
+        });
+
+        // Then process liters data
+        litersData.forEach((item: any) => {
+          if (boxMap.has(item.nombre)) {
+            // Update existing box
+            const box = boxMap.get(item.nombre)!;
+            box.litros = item.litros;
+            box.porcentajeLitros = item.porcentaje;
+          } else {
+            // Add new box that only has liters data
+            boxMap.set(item.nombre, {
+              nombre: item.nombre,
+              cantidad: 0,
+              porcentajeCajas: 0,
+              litros: item.litros,
+              porcentajeLitros: item.porcentaje
+            });
+          }
+        });
+
+        // Convert map to array
+        const result = Array.from(boxMap.values());
         setData(result);
         setFilteredData(result);
       } catch (err) {
@@ -81,6 +129,18 @@ export default function BoxesReport() {
 
   const handleGoBack = () => {
     router.back();
+  };
+
+  const handleDownload = () => {
+    const csvData = filteredData.map(item => ({
+      "Tipo de Caja": item.nombre,
+      "Cajas Producidas": item.cantidad,
+      "% del Total (Cajas)": `${item.porcentajeCajas.toFixed(1)}%`,
+      "Litros Producidos": item.litros,
+      "% del Total (Litros)": `${item.porcentajeLitros.toFixed(1)}%`
+    }));
+    
+    downloadCSV(csvData, "reporte_cajas");
   };
 
   if (loading) {
@@ -161,7 +221,7 @@ export default function BoxesReport() {
                     </Button>
                     <Button
                       variant="default"
-                      onClick={() => downloadCSV(filteredData, "reporte_cajas")}
+                      onClick={handleDownload}
                       className="gap-2"
                     >
                       <Download className="h-4 w-4" />
@@ -177,7 +237,9 @@ export default function BoxesReport() {
                     <TableRow>
                       <TableHead>Tipo de Caja</TableHead>
                       <TableHead className="text-right">Cajas Producidas</TableHead>
-                      <TableHead className="text-right">% del Total</TableHead>
+                      <TableHead className="text-right">% del Total (Cajas)</TableHead>
+                      <TableHead className="text-right">Litros Producidos</TableHead>
+                      <TableHead className="text-right">% del Total (Litros)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -185,10 +247,16 @@ export default function BoxesReport() {
                       <TableRow key={item.nombre}>
                         <TableCell>{item.nombre}</TableCell>
                         <TableCell className="text-right">
-                          {item.cantidad.toLocaleString("es-MX")}
+                          {formatNumber(item.cantidad)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {item.porcentaje.toFixed(1)}%
+                          {item.porcentajeCajas.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatNumber(item.litros)} L
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.porcentajeLitros.toFixed(1)}%
                         </TableCell>
                       </TableRow>
                     ))}

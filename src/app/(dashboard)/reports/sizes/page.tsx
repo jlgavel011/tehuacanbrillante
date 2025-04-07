@@ -21,11 +21,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { downloadCSV } from "@/lib/utils/csv";
 import { Download } from "lucide-react";
+import { formatNumber } from "@/lib/utils/formatters";
 
 interface SizeData {
   nombre: string;
   cantidad: number;
-  porcentaje: number;
+  porcentajeCajas: number;
+  litros: number;
+  porcentajeLitros: number;
 }
 
 export default function SizesReport() {
@@ -49,9 +52,54 @@ export default function SizesReport() {
           to: date.to.toISOString(),
         });
 
-        const response = await fetch(`/api/analytics/most-produced-sizes?${params}`);
-        if (!response.ok) throw new Error("Error al cargar los datos");
-        const result = await response.json();
+        // Fetch both datasets in parallel
+        const [boxesResponse, litersResponse] = await Promise.all([
+          fetch(`/api/analytics/most-produced-sizes?${params}`),
+          fetch(`/api/analytics/most-produced-sizes-liters?${params}`)
+        ]);
+
+        if (!boxesResponse.ok) throw new Error("Error al cargar los datos de cajas");
+        if (!litersResponse.ok) throw new Error("Error al cargar los datos de litros");
+
+        const boxesData = await boxesResponse.json();
+        const litersData = await litersResponse.json();
+
+        // Combine the data into a single dataset
+        const combinedData: SizeData[] = [];
+        const sizeMap = new Map<string, SizeData>();
+
+        // First process boxes data
+        boxesData.forEach((item: any) => {
+          sizeMap.set(item.nombre, {
+            nombre: item.nombre,
+            cantidad: item.cantidad,
+            porcentajeCajas: item.porcentaje,
+            litros: 0,
+            porcentajeLitros: 0
+          });
+        });
+
+        // Then process liters data
+        litersData.forEach((item: any) => {
+          if (sizeMap.has(item.nombre)) {
+            // Update existing size
+            const size = sizeMap.get(item.nombre)!;
+            size.litros = item.litros;
+            size.porcentajeLitros = item.porcentaje;
+          } else {
+            // Add new size that only has liters data
+            sizeMap.set(item.nombre, {
+              nombre: item.nombre,
+              cantidad: 0,
+              porcentajeCajas: 0,
+              litros: item.litros,
+              porcentajeLitros: item.porcentaje
+            });
+          }
+        });
+
+        // Convert map to array
+        const result = Array.from(sizeMap.values());
         setData(result);
         setFilteredData(result);
       } catch (err) {
@@ -82,6 +130,18 @@ export default function SizesReport() {
 
   const handleGoBack = () => {
     router.back();
+  };
+
+  const handleDownload = () => {
+    const csvData = filteredData.map(item => ({
+      "Tamaño": item.nombre,
+      "Cajas Producidas": item.cantidad,
+      "% del Total (Cajas)": `${item.porcentajeCajas.toFixed(1)}%`,
+      "Litros Producidos": item.litros,
+      "% del Total (Litros)": `${item.porcentajeLitros.toFixed(1)}%`
+    }));
+    
+    downloadCSV(csvData, "reporte_tamanos");
   };
 
   if (loading) {
@@ -159,7 +219,7 @@ export default function SizesReport() {
                     </Button>
                     <Button
                       variant="default"
-                      onClick={() => downloadCSV(filteredData, "reporte_tamanos")}
+                      onClick={handleDownload}
                       className="gap-2"
                     >
                       <Download className="h-4 w-4" />
@@ -175,7 +235,9 @@ export default function SizesReport() {
                     <TableRow>
                       <TableHead>Tamaño</TableHead>
                       <TableHead className="text-right">Cajas Producidas</TableHead>
-                      <TableHead className="text-right">% del Total</TableHead>
+                      <TableHead className="text-right">% del Total (Cajas)</TableHead>
+                      <TableHead className="text-right">Litros Producidos</TableHead>
+                      <TableHead className="text-right">% del Total (Litros)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -183,10 +245,16 @@ export default function SizesReport() {
                       <TableRow key={item.nombre}>
                         <TableCell>{item.nombre}</TableCell>
                         <TableCell className="text-right">
-                          {item.cantidad.toLocaleString("es-MX")}
+                          {formatNumber(item.cantidad)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {item.porcentaje.toFixed(1)}%
+                          {item.porcentajeCajas.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatNumber(item.litros)} L
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.porcentajeLitros.toFixed(1)}%
                         </TableCell>
                       </TableRow>
                     ))}

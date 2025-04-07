@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { authOptions } from "@/lib/auth/auth-options";
 
 // GET /api/production-lines/systems - Get all systems
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -12,7 +12,17 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    // Get query parameters
+    const url = new URL(request.url);
+    const productionLineId = url.searchParams.get('productionLineId');
+
+    // Add filter if productionLineId is provided
+    const whereClause = productionLineId 
+      ? { lineaProduccionId: productionLineId }
+      : {};
+
     const systems = await prisma.sistema.findMany({
+      where: whereClause,
       orderBy: {
         nombre: 'asc',
       },

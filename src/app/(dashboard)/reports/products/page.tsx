@@ -37,6 +37,8 @@ interface ProductData {
   sabor: string;
   tamaño: string;
   caja: number;
+  litros?: number;
+  litrosPorcentaje?: number;
 }
 
 export default function ProductsReport() {
@@ -46,6 +48,7 @@ export default function ProductsReport() {
   const [filteredData, setFilteredData] = useState<ProductData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ProductData | null>(null);
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -78,12 +81,62 @@ export default function ProductsReport() {
           to: date.to.toISOString(),
         });
 
-        const response = await fetch(`/api/analytics/most-produced-products?${params}`);
-        if (!response.ok) throw new Error("Error al cargar los datos");
-        const result = await response.json();
-        setData(result);
-        setFilteredData(result);
+        // Obtener datos de cajas producidas
+        const boxesResponse = await fetch(`/api/analytics/most-produced-products?${params}`);
+        if (!boxesResponse.ok) throw new Error("Error al cargar los datos de cajas");
+        const boxesResult = await boxesResponse.json();
+        
+        // Obtener datos de litros producidos
+        const litersResponse = await fetch(`/api/analytics/most-produced-products-liters?${params}`);
+        if (!litersResponse.ok) throw new Error("Error al cargar los datos de litros");
+        const litersResult = await litersResponse.json();
+        
+        // Crear un mapa para combinar productos
+        const productMap = new Map<string, ProductData>();
+        
+        // Primero, agregar todos los productos del reporte de cajas
+        boxesResult.forEach((item: any) => {
+          productMap.set(item.nombre, {
+            ...item,
+            litros: 0,
+            litrosPorcentaje: 0
+          });
+        });
+        
+        // Luego actualizar o agregar los productos del reporte de litros
+        litersResult.forEach((item: any) => {
+          if (productMap.has(item.nombre)) {
+            // Actualizar producto existente
+            const product = productMap.get(item.nombre)!;
+            productMap.set(item.nombre, {
+              ...product,
+              litros: item.litros,
+              litrosPorcentaje: item.porcentaje
+            });
+          } else {
+            // Agregar nuevo producto que solo aparece en el reporte de litros
+            productMap.set(item.nombre, {
+              nombre: item.nombre,
+              modelo: item.modelo,
+              sabor: item.sabor,
+              tamaño: item.tamaño,
+              caja: 0, // No tenemos información de cajas
+              cantidad: 0,
+              porcentaje: 0,
+              litros: item.litros,
+              litrosPorcentaje: item.porcentaje
+            });
+          }
+        });
+        
+        // Convertir el mapa a un array
+        const combinedData = Array.from(productMap.values());
+        
+        console.log("Datos combinados:", combinedData);
+        setData(combinedData);
+        setFilteredData(combinedData);
       } catch (err) {
+        console.error("Error fetching data:", err);
         setError(err instanceof Error ? err.message : "Error desconocido");
       } finally {
         setLoading(false);
@@ -131,6 +184,46 @@ export default function ProductsReport() {
 
   const handleGoBack = () => {
     router.back();
+  };
+
+  const handleDownload = () => {
+    // Preparar los datos para CSV incluyendo litros
+    const csvData = filteredData.map(item => ({
+      Producto: item.nombre,
+      Modelo: item.modelo,
+      Sabor: item.sabor,
+      Tamaño: item.tamaño,
+      "Unidades/Caja": item.caja,
+      "Cajas Producidas": item.cantidad,
+      "% Cajas": `${item.porcentaje.toFixed(1)}%`,
+      "Litros Producidos": item.litros || 0,
+      "% Litros": `${(item.litrosPorcentaje || 0).toFixed(1)}%`
+    }));
+    
+    downloadCSV(csvData, "reporte_productos");
+  };
+
+  const handleSelectItem = (item: ProductData) => {
+    if (selectedItem && selectedItem.nombre === item.nombre) {
+      setSelectedItem(null); // Deseleccionar si ya está seleccionado
+    } else {
+      setSelectedItem(item); // Seleccionar nuevo elemento
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (!selectedItem) return;
+    
+    // Filtrar el elemento seleccionado de los datos
+    const updatedData = data.filter(item => item.nombre !== selectedItem.nombre);
+    setData(updatedData);
+    
+    // Actualizar también los datos filtrados
+    const updatedFilteredData = filteredData.filter(item => item.nombre !== selectedItem.nombre);
+    setFilteredData(updatedFilteredData);
+    
+    // Limpiar la selección
+    setSelectedItem(null);
   };
 
   if (loading) {
@@ -203,12 +296,17 @@ export default function ProductsReport() {
                     className="w-[450px]"
                   />
                   <div className="flex gap-2">
+                    {selectedItem && (
+                      <Button variant="destructive" onClick={handleDeleteSelected}>
+                        Eliminar seleccionado
+                      </Button>
+                    )}
                     <Button variant="destructive" onClick={resetFilters}>
                       Limpiar filtros
                     </Button>
                     <Button
                       variant="default"
-                      onClick={() => downloadCSV(filteredData, "reporte_productos")}
+                      onClick={handleDownload}
                       className="gap-2"
                     >
                       <Download className="h-4 w-4" />
@@ -282,12 +380,18 @@ export default function ProductsReport() {
                       <TableHead>Tamaño</TableHead>
                       <TableHead className="text-right">Unidades/Caja</TableHead>
                       <TableHead className="text-right">Cajas Producidas</TableHead>
-                      <TableHead className="text-right">% del Total</TableHead>
+                      <TableHead className="text-right">% Cajas</TableHead>
+                      <TableHead className="text-right">Litros Producidos</TableHead>
+                      <TableHead className="text-right">% Litros</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredData.map((item) => (
-                      <TableRow key={item.nombre}>
+                      <TableRow 
+                        key={item.nombre} 
+                        className={`cursor-pointer ${selectedItem?.nombre === item.nombre ? 'bg-muted' : ''}`}
+                        onClick={() => handleSelectItem(item)}
+                      >
                         <TableCell>{item.nombre}</TableCell>
                         <TableCell>{item.modelo}</TableCell>
                         <TableCell>{item.sabor}</TableCell>
@@ -301,11 +405,33 @@ export default function ProductsReport() {
                         <TableCell className="text-right">
                           {item.porcentaje.toFixed(1)}%
                         </TableCell>
+                        <TableCell className="text-right">
+                          {(item.litros || 0).toLocaleString("es-MX", { 
+                            maximumFractionDigits: 2 
+                          })} L
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(item.litrosPorcentaje || 0).toFixed(1)}%
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
+
+              {selectedItem && (
+                <div className="p-4 border rounded-md bg-muted/30">
+                  <h3 className="text-lg font-medium mb-2">Elemento seleccionado:</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><span className="font-medium">Producto:</span> {selectedItem.nombre}</div>
+                    <div><span className="font-medium">Modelo:</span> {selectedItem.modelo}</div>
+                    <div><span className="font-medium">Sabor:</span> {selectedItem.sabor}</div>
+                    <div><span className="font-medium">Tamaño:</span> {selectedItem.tamaño}</div>
+                    <div><span className="font-medium">Cajas:</span> {selectedItem.cantidad.toLocaleString("es-MX")}</div>
+                    <div><span className="font-medium">Litros:</span> {(selectedItem.litros || 0).toLocaleString("es-MX", { maximumFractionDigits: 2 })} L</div>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

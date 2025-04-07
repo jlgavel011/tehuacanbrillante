@@ -124,6 +124,27 @@ export async function POST(req: NextRequest) {
       );
     }
     
+    // Calculate tiempoPlan (planned time in hours) if velocidadProduccion is available
+    let tiempoPlan = null;
+    
+    try {
+      // Get the production speed for this product on this production line
+      const productoEnLinea = await prisma.productoEnLinea.findFirst({
+        where: {
+          productoId: body.productoId,
+          lineaProduccionId: body.lineaProduccionId
+        }
+      });
+      
+      if (productoEnLinea?.velocidadProduccion && productoEnLinea.velocidadProduccion > 0) {
+        tiempoPlan = body.cajasPlanificadas / productoEnLinea.velocidadProduccion;
+      }
+    } catch (error) {
+      console.error("Error al obtener velocidad de producción:", error);
+      // Continue with tiempoPlan as null if there's an error
+    }
+    
+    // Create the order even if calculating tiempoPlan failed
     const orden = await prisma.produccion.create({
       data: {
         numeroOrden,
@@ -132,6 +153,7 @@ export async function POST(req: NextRequest) {
         fechaProduccion: new Date(body.fechaProduccion),
         lineaProduccionId: body.lineaProduccionId,
         productoId: body.productoId,
+        tiempoPlan: tiempoPlan,
       },
       include: {
         lineaProduccion: true,

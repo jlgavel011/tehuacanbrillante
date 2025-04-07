@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/db/prisma";
 import { authOptions } from "@/lib/auth/auth-options";
-
-const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
@@ -20,9 +19,20 @@ export async function POST(
     }
 
     const orderId = params.id;
-    const { cajasProducidas, paros, isFinalizingProduction = false } = await request.json();
+    const { 
+      cajasProducidas, 
+      paros, 
+      isFinalizingProduction = false,
+      tiempoTranscurridoHoras = 0 // Nuevo parámetro para recibir el tiempo transcurrido exacto
+    } = await request.json();
 
-    console.log("Received request data:", { orderId, cajasProducidas, parosCount: paros?.length, isFinalizingProduction });
+    console.log("Received request data:", { 
+      orderId, 
+      cajasProducidas, 
+      parosCount: paros?.length, 
+      isFinalizingProduction,
+      tiempoTranscurridoHoras
+    });
 
     if (!orderId) {
       return NextResponse.json(
@@ -49,6 +59,86 @@ export async function POST(
     console.log("Found order:", { orderId: order.id, lineaProduccionId: order.lineaProduccion.id });
 
     try {
+      // Calculate the increment in production since the last update
+      const cajasPrevias = order.cajasProducidas || 0;
+      const incrementoCajas = cajasProducidas - cajasPrevias;
+      
+      console.log("Production increment calculation:", {
+        orderId,
+        cajasPrevias,
+        cajasProducidas,
+        incrementoCajas
+      });
+      
+      // Record the hourly production data if there's an increment
+      if (incrementoCajas > 0) {
+        try {
+          console.log("Creating hourly production record with data:", {
+            produccionId: orderId,
+            cajasProducidas: incrementoCajas,
+            horaRegistro: new Date()
+          });
+          
+          const produccionPorHora = await prisma.produccionPorHora.create({
+            data: {
+              produccionId: orderId,
+              cajasProducidas: incrementoCajas,
+              horaRegistro: new Date()
+            }
+          });
+          
+          console.log("Successfully created hourly production record:", produccionPorHora);
+        } catch (error) {
+          console.error("Error creating hourly production record:", error);
+          // Continue with the update even if there's an error with the hourly record
+        }
+      } else {
+        console.log("No increment in production, skipping hourly record");
+      }
+
+      // Calculate remaining time if finalizing production
+      if (isFinalizingProduction) {
+        try {
+          const ahora = new Date();
+          
+          // Si el cliente envió el tiempo transcurrido, usarlo directamente
+          // De lo contrario, calcularlo basado en lastUpdateTime
+          let tiempoRemanente = tiempoTranscurridoHoras;
+          
+          if (tiempoRemanente <= 0 && order.lastUpdateTime) {
+            const ultimaActualizacion = new Date(order.lastUpdateTime);
+            // Calculate time difference in hours as fallback
+            tiempoRemanente = (ahora.getTime() - ultimaActualizacion.getTime()) / (1000 * 60 * 60);
+            
+            console.log("Calculated remaining time from lastUpdateTime:", {
+              ultimaActualizacion,
+              ahora,
+              tiempoRemanenteHoras: tiempoRemanente
+            });
+          } else {
+            console.log("Using client-provided time:", {
+              tiempoTranscurridoHoras
+            });
+          }
+          
+          if (tiempoRemanente > 0) {
+            // Record the remaining time
+            const finalizacion = await prisma.finalizacionProduccion.create({
+              data: {
+                produccionId: orderId,
+                tiempoHoras: tiempoRemanente,
+                fechaRegistro: ahora
+              }
+            });
+            
+            console.log("Successfully created finalization record:", finalizacion);
+          }
+        } catch (error) {
+          console.error("Error creating finalization record:", error);
+          // Continue with the update even if there's an error with the finalization record
+        }
+      }
+
       // Update the order with the new total production
       const updatedOrder = await prisma.produccion.update({
         where: { id: orderId },

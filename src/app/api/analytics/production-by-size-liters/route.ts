@@ -20,7 +20,8 @@ export async function GET() {
       where: {
         fechaProduccion: {
           gte: thirtyDaysAgo
-        }
+        },
+        estado: "completada" // Solo considerar producciones completadas
       },
       select: {
         productoId: true,
