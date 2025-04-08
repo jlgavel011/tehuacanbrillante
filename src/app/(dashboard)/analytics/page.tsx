@@ -58,6 +58,8 @@ import { PlannedVsProducedBoxesByLine } from "@/components/analytics/reports/Pla
 import { PlannedVsProducedBoxesByShift } from "@/components/analytics/reports/PlannedVsProducedBoxesByShift";
 import { ProductionHeatmapByDay } from "@/components/analytics/reports/ProductionHeatmapByDay";
 import { ProductionHeatmapByHour } from "@/components/analytics/reports/ProductionHeatmapByHour";
+import { ReportBuilder } from "@/components/analytics/reports/ReportBuilder";
+import { ReportViewer } from "@/components/analytics/reports/ReportViewer";
 
 function AnalyticsContent() {
   const { 
@@ -125,7 +127,7 @@ function AnalyticsContent() {
               Reportes Estratégicos
             </TabsTrigger>
             <TabsTrigger value="detailed" className="data-[state=active]:bg-primary/10">
-              Reportes Detallados
+              Explorador de Reportes
             </TabsTrigger>
           </TabsList>
         </div>
@@ -373,10 +375,18 @@ function AnalyticsContent() {
         </TabsContent>
 
         <TabsContent value="detailed" className="space-y-4">
-          <Card className="p-4">
-            <h2 className="text-xl font-semibold mb-4">Registro de Paros</h2>
-            <StopsTable />
-          </Card>
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <h2 className="text-lg font-semibold mb-4 p-2 rounded-md bg-[#e2f1f8]">Explorador de Reportes Avanzado</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+              <div className="lg:col-span-1 bg-gray-50 p-4 rounded-lg shadow-sm">
+                <ReportBuilder />
+              </div>
+              <div className="lg:col-span-3">
+                <ReportViewer />
+              </div>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
