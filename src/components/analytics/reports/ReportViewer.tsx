@@ -145,9 +145,24 @@ const STRATEGIC_COLORS = {
   danger: "#f43f5e",     // Rose - Peligro/negativo
   warning: "#f59e0b",    // Amber - Advertencia
   info: "#6366f1",       // Indigo - Información
-  chartColors: ["#2563eb", "#10b981", "#f59e0b", "#6366f1", "#f43f5e", "#84cc16", "#8b5cf6", "#64748b"],
-  // Color principal para gráficos de pastel
-  pieColor: "#2563eb"
+  // Paleta de colores vivos y contrastantes para gráficos
+  chartColors: [
+    "#2563eb", // blue-600
+    "#10b981", // emerald-500
+    "#f59e0b", // amber-500
+    "#8b5cf6", // violet-500
+    "#ef4444", // red-500
+    "#06b6d4", // cyan-500
+    "#ec4899", // pink-500
+    "#84cc16"  // lime-500
+  ],
+  pieColors: [
+    "#2563eb", // blue-600
+    "#3b82f6", // blue-500
+    "#60a5fa", // blue-400
+    "#93c5fd", // blue-300
+    "#bfdbfe", // blue-200
+  ]
 };
 
 // Función auxiliar para determinar si los datos son temporales
@@ -723,7 +738,7 @@ export function ReportViewer() {
                         <Bar 
                           key={key} 
                           dataKey={key} 
-                          fill="#2563eb" 
+                          fill={STRATEGIC_COLORS.chartColors[index % STRATEGIC_COLORS.chartColors.length]} 
                           radius={[4, 4, 0, 0]}
                           barSize={40}
                           animationDuration={800}
@@ -798,10 +813,10 @@ export function ReportViewer() {
                           key={key} 
                           type="monotone"
                           dataKey={key} 
-                          stroke="#2563eb" 
+                          stroke={STRATEGIC_COLORS.chartColors[index % STRATEGIC_COLORS.chartColors.length]} 
                           strokeWidth={2}
-                          dot={{ r: 4, fill: '#2563eb', strokeWidth: 2, stroke: '#fff' }}
-                          activeDot={{ r: 6, fill: '#2563eb', strokeWidth: 0 }}
+                          dot={{ r: 4, fill: STRATEGIC_COLORS.chartColors[index % STRATEGIC_COLORS.chartColors.length], strokeWidth: 2, stroke: '#fff' }}
+                          activeDot={{ r: 6, fill: STRATEGIC_COLORS.chartColors[index % STRATEGIC_COLORS.chartColors.length], strokeWidth: 0 }}
                           isAnimationActive={true}
                           animationDuration={800}
                           connectNulls
@@ -873,12 +888,42 @@ export function ReportViewer() {
                           stroke="white"
                           strokeWidth={2}
                         >
-                          {reportData.chartData.slice(0, 8).map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill="#2563eb" // Color azul consistente para todos los segmentos
-                            />
-                          ))}
+                          {(() => {
+                            const pieData = (() => {
+                              // Preparar datos para gráfico de pastel
+                              const categoryKey = findMainCategory(reportData.chartData) || Object.keys(reportData.chartData[0])[0];
+                              const valueKey = findNumericKeys(reportData.chartData)[0];
+                              
+                              if (!categoryKey || !valueKey) return [];
+                              
+                              // Calcular suma total para porcentajes
+                              const total = reportData.chartData.reduce((sum, item) => 
+                                sum + (typeof item[valueKey] === 'number' ? item[valueKey] : 0), 0);
+                              
+                              // Transformar y ordenar los datos
+                              return reportData.chartData
+                                .map(item => {
+                                  const value = typeof item[valueKey] === 'number' ? item[valueKey] : 0;
+                                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
+                                  
+                                  return {
+                                    name: item[categoryKey],
+                                    value: value,
+                                    percentage: percentage,
+                                    formattedName: `${item[categoryKey]} (${percentage}%)`
+                                  };
+                                })
+                                .sort((a, b) => b.value - a.value)
+                                .slice(0, 8); // Limitar a 8 elementos para mejor visualización
+                            })();
+                            
+                            return pieData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={STRATEGIC_COLORS.pieColors[index % STRATEGIC_COLORS.pieColors.length]} 
+                              />
+                            ));
+                          })()}
                         </Pie>
                         <Tooltip 
                           content={({ active, payload }) => {
@@ -893,7 +938,7 @@ export function ReportViewer() {
                               <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-md">
                                 <div className="font-medium">{data.name}</div>
                                 <div className="flex items-center gap-2">
-                                  <div className="h-3 w-3 rounded-full bg-[#2563eb]" />
+                                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: data.color }} />
                                   <span className="text-sm text-slate-500">
                                     Cantidad:
                                   </span>
@@ -906,7 +951,7 @@ export function ReportViewer() {
                                   <span className="text-sm text-slate-500">
                                     Porcentaje:
                                   </span>
-                                  <span className="text-sm font-medium text-[#2563eb]">
+                                  <span className="text-sm font-medium" style={{ color: data.color }}>
                                     {data.payload?.percentage || "0.0"}%
                                   </span>
                                 </div>
@@ -929,11 +974,8 @@ export function ReportViewer() {
                       const total = reportData.chartData.reduce((sum, item) => 
                         sum + (typeof item[valueKey] === 'number' ? item[valueKey] : 0), 0);
                       
-                      // Colores específicos para coincidir con la imagen de referencia (todos azules)
-                      const blueColors = ["#2563eb", "#0ea5e9", "#38bdf8", "#7dd3fc", "#93c5fd", "#bfdbfe", "#dbeafe", "#eff6ff"];
-                      
                       // Transformar y ordenar los datos
-                      return reportData.chartData
+                      const sortedData = reportData.chartData
                         .map((item, idx) => {
                           const value = typeof item[valueKey] === 'number' ? item[valueKey] : 0;
                           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
@@ -943,23 +985,23 @@ export function ReportViewer() {
                             name: item[categoryKey],
                             value: value,
                             formattedValue: formattedValue,
-                            percentage: percentage,
-                            color: blueColors[idx % blueColors.length]
+                            percentage: percentage
                           };
                         })
                         .sort((a, b) => b.value - a.value)
-                        .slice(0, 8)
-                        .map((item, index) => (
-                          <div key={index} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-50/50 hover:bg-slate-100/80 transition-colors cursor-default shadow-sm">
-                            <div 
-                              className="w-4 h-4 rounded-full" 
-                              style={{ backgroundColor: item.color }}
-                            ></div>
-                            <span className="text-sm font-medium text-slate-700">{item.name}</span>
-                            <span className="text-sm font-semibold text-slate-500">({item.formattedValue})</span>
-                            <span className="text-sm font-bold text-blue-600">{item.percentage}%</span>
-                          </div>
-                        ));
+                        .slice(0, 8);
+                      
+                      return sortedData.map((item, index) => (
+                        <div key={index} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-50/50 hover:bg-slate-100/80 transition-colors cursor-default shadow-sm">
+                          <div 
+                            className="w-4 h-4 rounded-full" 
+                            style={{ backgroundColor: STRATEGIC_COLORS.pieColors[index % STRATEGIC_COLORS.pieColors.length] }}
+                          ></div>
+                          <span className="text-sm font-medium text-slate-700">{item.name}</span>
+                          <span className="text-sm font-semibold text-slate-500">({item.formattedValue})</span>
+                          <span className="text-sm font-bold" style={{ color: STRATEGIC_COLORS.pieColors[index % STRATEGIC_COLORS.pieColors.length] }}>{item.percentage}%</span>
+                        </div>
+                      ));
                     })()}
                   </div>
                   
