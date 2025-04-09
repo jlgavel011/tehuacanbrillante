@@ -8,6 +8,8 @@ import { Header } from "@/components/dashboard/header";
 import { SidebarProvider } from "@/lib/context/SidebarContext";
 import { useSidebar } from "@/lib/context/SidebarContext";
 import { DateRangeProvider } from "@/context/DateRangeContext";
+import { NotificationProvider } from "@/lib/context/NotificationContext";
+import OrderNotificationListener from "@/components/notifications/OrderNotificationListener";
 
 // Inner component to use the sidebar context
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
@@ -24,6 +26,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         <Header />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
+      <OrderNotificationListener />
     </div>
   );
 }
@@ -52,9 +55,11 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <DateRangeProvider>
-        <DashboardLayoutInner>{children}</DashboardLayoutInner>
-      </DateRangeProvider>
+      <NotificationProvider>
+        <DateRangeProvider>
+          <DashboardLayoutInner>{children}</DashboardLayoutInner>
+        </DateRangeProvider>
+      </NotificationProvider>
     </SidebarProvider>
   );
 } 
