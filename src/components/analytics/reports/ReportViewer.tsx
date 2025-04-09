@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, Download, FileText, BarChart2, PieChart, LineChart, Info, AlertTriangle } from "lucide-react";
+import { ChevronDown, Download, FileText, BarChart2, PieChart, LineChart, Info, AlertTriangle, FileSpreadsheet, FileType, Loader2 } from "lucide-react";
 import { BarChart, DonutChart, LineChart as TremorLineChart, Title, Subtitle } from "@tremor/react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
@@ -31,6 +31,21 @@ import {
   Line,
   Legend
 } from "recharts";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import autoTable from 'jspdf-autotable';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 // Tipos de datos para el reporte
 type ReportFilter = {
@@ -242,276 +257,314 @@ const findMainCategory = (data: any[]): string | null => {
   return null;
 };
 
+// --- Type for PDF options ---
+type PdfIncludeOptions = {
+  table: boolean;
+  barras: boolean;
+  lineas: boolean;
+  pastel: boolean;
+};
+
 export function ReportViewer() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [activeTab, setActiveTab] = useState("tabla");
   const [isLoading, setIsLoading] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
   const [reportTitle, setReportTitle] = useState("Reporte Personalizado");
   const [chartWarnings, setChartWarnings] = useState<string[]>([]);
   const [optimalVisualization, setOptimalVisualization] = useState<string | null>(null);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [pdfIncludeOptions, setPdfIncludeOptions] = useState<PdfIncludeOptions>({
+    table: true,
+    barras: true,
+    lineas: true,
+    pastel: true,
+  });
 
-  // Función para determinar la visualización óptima basada en los datos
+  // Refs
+  const chartContainerRefs = {
+    barras: useRef<HTMLDivElement>(null),
+    lineas: useRef<HTMLDivElement>(null),
+    pastel: useRef<HTMLDivElement>(null),
+  };
+  const tableContainerRef = useRef<HTMLTableElement>(null);
+
+  // --- Helper Functions defined in component scope ---
+
   const determineOptimalVisualization = (data: any[], currentViz: string) => {
     if (!data || data.length === 0) return { visualization: 'tabla', warnings: ['No hay datos para visualizar'] };
-    
     const warnings: string[] = [];
     let recommendedViz = currentViz;
-    
-    // Verificar número de registros
     if (data.length === 1 && currentViz !== 'tabla') {
       warnings.push('Solo hay un registro. La tabla es la mejor visualización.');
       recommendedViz = 'tabla';
     }
-    
-    // Verificar si son datos temporales
     const temporal = isTemporalData(data);
-    
-    // Número de categorías únicas para gráficos de pastel
     const categoryKey = findMainCategory(data);
     if (categoryKey) {
       const uniqueCategories = new Set(data.map(item => item[categoryKey])).size;
-      
-      // Demasiadas categorías para gráfico de pastel
       if (currentViz === 'pastel' && uniqueCategories > 8) {
         warnings.push(`Demasiadas categorías (${uniqueCategories}) para un gráfico de pastel. Considera usar barras.`);
         recommendedViz = 'barras';
       }
-      
-      // Muy pocas categorías para gráfico de líneas
       if (currentViz === 'lineas' && uniqueCategories < 3 && !temporal) {
         warnings.push('Pocas categorías para un gráfico de líneas. Un gráfico de barras podría ser más claro.');
         recommendedViz = 'barras';
       }
     }
-    
-    // Verificar datos temporales para gráficos apropiados
     if (temporal) {
       if (currentViz === 'pastel') {
         warnings.push('Los datos temporales suelen visualizarse mejor como líneas o barras.');
         recommendedViz = 'lineas';
       }
     } else {
-      // Si no son datos temporales y se usa líneas
       if (currentViz === 'lineas' && !temporal) {
         warnings.push('El gráfico de líneas es mejor para series temporales. Considera usar barras.');
         recommendedViz = 'barras';
       }
     }
-    
-    // Verificar claves numéricas para gráficos
     const numericKeys = findNumericKeys(data);
     if (numericKeys.length === 0 && currentViz !== 'tabla') {
       warnings.push('No se encontraron valores numéricos para gráficos. La tabla es la mejor opción.');
       recommendedViz = 'tabla';
     }
-    
     return { visualization: recommendedViz, warnings };
   };
 
-  // Escuchar el evento de generación de reporte
+  const generateReportTitle = (filters: Record<string, string | string[]>) => {
+    let title = "Reporte de ";
+    if (filters.entidad_principal === 'produccion') title += "Producción";
+    else if (filters.entidad_principal === 'producto') title += "Productos";
+    else if (filters.entidad_principal === 'linea') title += "Líneas de Producción";
+    else if (filters.entidad_principal === 'paro') title += "Paros";
+    if (filters.agrupacion) {
+      const agrupacion = filters.agrupacion as string;
+      if (agrupacion === 'dia') title += " por Día";
+      else if (agrupacion === 'semana') title += " por Semana";
+      else if (agrupacion === 'mes') title += " por Mes";
+      else if (agrupacion === 'linea') title += " por Línea";
+      else if (agrupacion === 'producto') title += " por Producto";
+      else if (agrupacion === 'turno') title += " por Turno";
+    }
+    setReportTitle(title);
+  };
+
+  const handleExportCsv = () => {
+    if (!reportData || !reportData.tableData || reportData.tableData.length === 0) return;
+    try {
+      const headers = reportData.columns.map(col => col.title);
+      const csvContent = [
+        headers.join(','),
+        ...reportData.tableData.map(row => 
+          reportData.columns
+            .map(col => {
+              const value = row[col.key];
+              const escapedValue = typeof value === 'string' ? value.replace(/"/g, '""') : value;
+              return `"${escapedValue}"`; 
+            })
+            .join(',')
+        )
+      ].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${reportTitle.replace(/\s+/g, '_')}.csv`);
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error exportando datos CSV:", error);
+    }
+  };
+
+  const handleExportPdf = async (options: PdfIncludeOptions) => { 
+    if (!reportData || !reportGenerated) return;
+    setIsExportingPdf(true);
+    
+    const originalActiveTab = activeTab;
+
+    try {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 40;
+      let yPosition = margin;
+
+      // --- 1. Add Title and Date Range ---
+      doc.setFontSize(18);
+      doc.text(reportTitle, margin, yPosition); yPosition += 25;
+      doc.setFontSize(10);
+      if (reportData.dateRange) {
+        const dateString = `${new Date(reportData.dateRange.from).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })} - ${new Date(reportData.dateRange.to).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        doc.text(dateString, margin, yPosition); yPosition += 20;
+      }
+      yPosition += 10;
+
+      // --- 2. Add Table (Conditional) ---
+      if (options.table && reportData.tableData && reportData.tableData.length > 0) {
+        const tableHeaders = reportData.columns.map(col => col.title);
+        const tableBody = reportData.tableData.map(row => reportData.columns.map(col => row[col.key] ?? ''));
+        if (yPosition + 40 > pageHeight - margin) { doc.addPage(); yPosition = margin; }
+        autoTable(doc, {
+          head: [tableHeaders], body: tableBody, startY: yPosition,
+          margin: { left: margin, right: margin }, theme: 'grid',
+          headStyles: { fillColor: [0, 105, 92] }, styles: { fontSize: 7, cellPadding: 3 },
+          didDrawPage: (data) => { yPosition = data.cursor?.y ?? margin; }
+        });
+        yPosition += 20;
+      } else if (options.table) {
+        if (yPosition + 20 > pageHeight - margin) { doc.addPage(); yPosition = margin; }
+        doc.setFontSize(9);
+        doc.text("Tabla seleccionada, pero no hay datos disponibles.", margin, yPosition); yPosition += 20;
+      }
+
+      // --- 3. Add Selected Charts (Sequentially using longer setTimeout) ---
+      const chartConfigs = [
+        { id: 'barras', title: 'Gráfico de Barras' },
+        { id: 'lineas', title: 'Gráfico de Líneas' },
+        { id: 'pastel', title: 'Gráfico de Distribución (Pastel)' },
+      ];
+      const hasChartData = reportData.chartData && reportData.chartData.length > 0;
+
+      for (const config of chartConfigs) {
+        if (options[config.id as keyof PdfIncludeOptions] && hasChartData) {
+          console.log(`Processing chart: ${config.id}`);
+          setActiveTab(config.id);
+          
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+          const chartRef = chartContainerRefs[config.id as keyof typeof chartContainerRefs]?.current;
+          if (chartRef) {
+            if (yPosition + 30 > pageHeight - margin) { doc.addPage(); yPosition = margin; }
+            doc.setFontSize(12);
+            doc.text(config.title, margin, yPosition); yPosition += 20;
+
+            try {
+              console.log(`Capturing chart: ${config.id}`);
+              const canvas = await html2canvas(chartRef, { 
+                  scale: 2, 
+                  backgroundColor: '#ffffff', 
+                  logging: false, 
+                  useCORS: true
+              });
+              const imgData = canvas.toDataURL('image/png');
+              const imgProps = doc.getImageProperties(imgData);
+              const imgWidth = pageWidth - margin * 2;
+              let imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+              const maxHeight = pageHeight - margin - yPosition;
+              if (imgHeight > maxHeight) {
+                if (imgHeight > pageHeight - margin * 2) { 
+                  imgHeight = pageHeight - margin * 2;
+                }
+                doc.addPage(); yPosition = margin;
+              }
+              doc.addImage(imgData, 'PNG', margin, yPosition, imgWidth, imgHeight);
+              yPosition += imgHeight + 25;
+            } catch (canvasError) {
+              console.error(`Error capturing chart ${config.title} with html2canvas:`, canvasError);
+               if (yPosition + 20 > pageHeight - margin) { doc.addPage(); yPosition = margin; }
+               doc.setFontSize(9);
+               doc.setTextColor(255, 0, 0); 
+               doc.text(`Error al capturar el gráfico: ${config.title}`, margin, yPosition); 
+               doc.setTextColor(0, 0, 0); 
+               yPosition += 20;
+            }
+          } else {
+             console.warn(`Chart ref not found for ${config.id} after tab switch.`);
+          }
+        } else if (options[config.id as keyof PdfIncludeOptions]) {
+          if (yPosition + 20 > pageHeight - margin) { doc.addPage(); yPosition = margin; }
+          doc.setFontSize(9);
+          doc.text(`Gráfico '${config.title}' seleccionado, pero no hay datos disponibles.`, margin, yPosition); yPosition += 20;
+        }
+      }
+
+      // --- 4. Save PDF ---
+      doc.save(`${reportTitle.replace(/\s+/g, '_')}.pdf`);
+
+    } catch (error) {
+      console.error("Error generando PDF:", error);
+      // TODO: Add user feedback (maybe a toast notification after modal closes)
+    } finally {
+      setActiveTab(originalActiveTab);
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handlePdfOptionChange = (option: keyof PdfIncludeOptions, checked: boolean) => {
+    setPdfIncludeOptions(prev => ({ ...prev, [option]: checked }));
+  };
+
+  // --- useEffect for reportGenerated event ---
   useEffect(() => {
     const handleReportGenerated = async (event: any) => {
       setIsLoading(true);
-      setReportGenerated(false); // Reset anterior estado
-      setChartWarnings([]); // Limpiar advertencias anteriores
+      setReportGenerated(false);
+      setChartWarnings([]);
       const filters = event.detail.filters;
       const dateRange = event.detail.dateRange;
-      
-      // Almacenar el rango de fechas para mostrarlo en el reporte
       const reportDateRange = {
         from: dateRange?.from ? new Date(dateRange.from) : new Date(new Date().setDate(new Date().getDate() - 30)),
         to: dateRange?.to ? new Date(dateRange.to) : new Date()
       };
-      
       try {
-        // Construir parámetros para la API
         const params = new URLSearchParams();
-        
-        // Añadir entidad principal
-        if (filters.entidad_principal) {
-          params.append('entidad_principal', filters.entidad_principal as string);
-        }
-        
-        // Añadir agrupación
-        if (filters.agrupacion) {
-          params.append('agrupacion', filters.agrupacion as string);
-        }
-        
-        // Añadir visualización
-        if (filters.visualizacion) {
-          params.append('visualizacion', filters.visualizacion as string);
-        }
-        
-        // Añadir filtros multi-selección
-        if (Array.isArray(filters.linea_produccion)) {
-          filters.linea_produccion.forEach((id: string) => {
-            params.append('linea_produccion', id);
-          });
-        }
-        
-        if (Array.isArray(filters.producto)) {
-          filters.producto.forEach((id: string) => {
-            params.append('producto', id);
-          });
-        }
-        
-        if (Array.isArray(filters.turno)) {
-          filters.turno.forEach((id: string) => {
-            params.append('turno', id);
-          });
-        }
-        
-        if (Array.isArray(filters.tipo_paro)) {
-          filters.tipo_paro.forEach((id: string) => {
-            params.append('tipo_paro', id);
-          });
-        }
-        
-        // Añadir rango de fechas
+        // Append params...
+        if (filters.entidad_principal) params.append('entidad_principal', filters.entidad_principal as string);
+        if (filters.agrupacion) params.append('agrupacion', filters.agrupacion as string);
+        if (filters.visualizacion) params.append('visualizacion', filters.visualizacion as string);
+        if (Array.isArray(filters.linea_produccion)) filters.linea_produccion.forEach((id: string) => params.append('linea_produccion', id));
+        if (Array.isArray(filters.producto)) filters.producto.forEach((id: string) => params.append('producto', id));
+        if (Array.isArray(filters.turno)) filters.turno.forEach((id: string) => params.append('turno', id));
+        if (Array.isArray(filters.tipo_paro)) filters.tipo_paro.forEach((id: string) => params.append('tipo_paro', id));
         if (dateRange?.from && dateRange?.to) {
           params.append('from', dateRange.from.toISOString());
           params.append('to', dateRange.to.toISOString());
         }
-        
-        // Llamar a la API
         const response = await fetch(`/api/reports/dynamic-report?${params.toString()}`);
-        
-        if (!response.ok) {
-          throw new Error('Error al generar el reporte');
-        }
-        
+        if (!response.ok) throw new Error('Error al generar el reporte');
         const data = await response.json();
-        
-        // Si no hay datos o los tableData están vacíos, mostrar un mensaje
         if (!data || (data.tableData && data.tableData.length === 0)) {
           console.log('No hay datos para los filtros seleccionados');
           setChartWarnings(['No se encontraron datos con los filtros seleccionados']);
+          setReportData({ // Set minimal data structure even if empty
+            kpis: [], chartData: [], tableData: [], 
+            columns: data?.columns || [], // Use columns if API provides them
+            dateRange: reportDateRange
+          });
         } else {
-          // Determinar la mejor visualización
-          const { visualization, warnings } = determineOptimalVisualization(
-            data.tableData || data.chartData, 
-            filters.visualizacion as string
-          );
-          
+          // Use the determineOptimalVisualization function defined above
+          const { visualization, warnings } = determineOptimalVisualization(data.tableData || data.chartData, filters.visualizacion as string);
           setChartWarnings(warnings);
-          
-          if (visualization !== filters.visualizacion) {
-            setOptimalVisualization(visualization);
-          } else {
-            setOptimalVisualization(null);
-          }
+          if (visualization !== filters.visualizacion) setOptimalVisualization(visualization);
+          else setOptimalVisualization(null);
+          setReportData({ ...data, dateRange: reportDateRange });
         }
-        
-        // Agregar información de fechas al reporte
-        setReportData({
-          ...data,
-          dateRange: reportDateRange
-        });
         setReportGenerated(true);
-        
-        // Generar un título basado en los filtros seleccionados
-        generateReportTitle(filters);
-        
-        // Establecer la pestaña activa según la visualización seleccionada o la recomendada
-        if (filters.visualizacion) {
-          setActiveTab(filters.visualizacion as string);
-        }
-        
-        // Emitir evento de finalización para que el ReportBuilder actualice su estado
+        generateReportTitle(filters); // Use generateReportTitle defined above
+        if (filters.visualizacion) setActiveTab(filters.visualizacion as string);
         window.dispatchEvent(new CustomEvent('reportFinished'));
       } catch (error) {
         console.error('Error al generar el reporte:', error);
-        // Mostrar mensaje de error en lugar de usar datos de ejemplo
-        setReportData({
-          kpis: [
-            { title: "Error", value: "No se pudieron cargar los datos", color: "#f87171" }
-          ],
-          chartData: [],
-          tableData: [],
-          columns: [{ key: "mensaje", title: "Mensaje" }],
-          dateRange: reportDateRange
-        });
+        setReportData({ kpis: [{ title: "Error", value: "No se pudieron cargar los datos", color: "#f87171" }], chartData: [], tableData: [], columns: [{ key: "mensaje", title: "Mensaje" }], dateRange: reportDateRange });
         setReportGenerated(true);
         setActiveTab('tabla');
-        
-        // Emitir evento de finalización incluso en caso de error
         window.dispatchEvent(new CustomEvent('reportFinished'));
       } finally {
         setIsLoading(false);
       }
     };
-    
-    // Manejar evento de exportación de datos
-    const handleExportData = () => {
-      if (!reportData || !reportData.tableData.length) return;
-      
-      try {
-        const headers = reportData.columns.map(col => col.title);
-        const csvContent = [
-          headers.join(','),
-          ...reportData.tableData.map(row => 
-            reportData.columns
-              .map(col => `"${row[col.key]}"`)
-              .join(',')
-          )
-        ].join('\n');
-        
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.setAttribute('href', url);
-        link.setAttribute('download', `${reportTitle.replace(/\s+/g, '_')}.csv`);
-        link.click();
-      } catch (error) {
-        console.error("Error exportando datos:", error);
-      }
-    };
-    
+
     window.addEventListener('reportGenerated', handleReportGenerated);
-    window.addEventListener('exportReportData', handleExportData);
-    
     return () => {
       window.removeEventListener('reportGenerated', handleReportGenerated);
-      window.removeEventListener('exportReportData', handleExportData);
     };
-  }, []);
-  
-  // Generar un título descriptivo para el reporte
-  const generateReportTitle = (filters: Record<string, string | string[]>) => {
-    let title = "Reporte de ";
-    
-    // Entidad principal
-    if (filters.entidad_principal === 'produccion') {
-      title += "Producción";
-    } else if (filters.entidad_principal === 'producto') {
-      title += "Productos";
-    } else if (filters.entidad_principal === 'linea') {
-      title += "Líneas de Producción";
-    } else if (filters.entidad_principal === 'paro') {
-      title += "Paros";
-    }
-    
-    // Agrupación
-    if (filters.agrupacion) {
-      const agrupacion = filters.agrupacion as string;
-      if (agrupacion === 'dia') {
-        title += " por Día";
-      } else if (agrupacion === 'semana') {
-        title += " por Semana";
-      } else if (agrupacion === 'mes') {
-        title += " por Mes";
-      } else if (agrupacion === 'linea') {
-        title += " por Línea";
-      } else if (agrupacion === 'producto') {
-        title += " por Producto";
-      } else if (agrupacion === 'turno') {
-        title += " por Turno";
-      }
-    }
-    
-    setReportTitle(title);
-  };
+  }, []); // Empty dependency array is correct here, it sets up the listener once
+
+  // --- Determine if data exists for modal checkboxes ---
+  const hasChartDataForModal = reportData?.chartData && reportData.chartData.length > 0;
+  const hasTableDataForModal = reportData?.tableData && reportData.tableData.length > 0;
 
   if (!reportGenerated) {
     return (
@@ -550,46 +603,120 @@ export function ReportViewer() {
 
   return (
     <div className="space-y-6 w-full">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">{reportTitle}</h2>
           <p className="text-sm text-slate-500">
-            {reportData.dateRange ? (
-              `${new Date(reportData.dateRange.from).toLocaleDateString('es-MX', { 
-                day: 'numeric', 
-                month: 'short',
-                year: reportData.dateRange.from.getFullYear() !== reportData.dateRange.to.getFullYear() ? 'numeric' : undefined
-              })} - ${new Date(reportData.dateRange.to).toLocaleDateString('es-MX', { 
-                day: 'numeric', 
-                month: 'short',
-                year: 'numeric'
-              })}`
+            {reportData?.dateRange ? (
+              `${new Date(reportData.dateRange.from).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: reportData.dateRange.from.getFullYear() !== reportData.dateRange.to.getFullYear() ? 'numeric' : undefined })} - ${new Date(reportData.dateRange.to).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}`
             ) : (
-              new Date().toLocaleDateString('es-MX', { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric' 
-              })
+              reportGenerated ? 'Periodo no especificado' : '' // Show message only after generation
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* CSV Button */}
           <Button 
             variant="outline" 
             size="sm" 
             className="border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-            onClick={() => {
-              // Usar el mismo evento que el botón en ReportBuilder
-              window.dispatchEvent(new CustomEvent('exportReportData'));
-            }}
+            onClick={handleExportCsv} 
+            disabled={!hasTableDataForModal || isLoading}
           >
-            <Download className="h-4 w-4 mr-1" />
-            Exportar datos
+            <FileSpreadsheet className="h-4 w-4 mr-1" />
+            Exportar CSV
           </Button>
+          {/* PDF Button (triggers Modal) */}
+          <Dialog open={isPdfModalOpen} onOpenChange={setIsPdfModalOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                disabled={isExportingPdf || !reportData || !reportGenerated || isLoading} // Disable if no report generated
+              >
+                {isExportingPdf ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <FileType className="h-4 w-4 mr-1" />
+                )}
+                {isExportingPdf ? "Exportando..." : "Exportar PDF"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Opciones de Exportación PDF</DialogTitle>
+                <DialogDescription>
+                  Selecciona los elementos que deseas incluir en el archivo PDF.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                {/* Checkbox for Table */}
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="includeTable" 
+                    checked={pdfIncludeOptions.table}
+                    onCheckedChange={(checked) => handlePdfOptionChange('table', !!checked)} 
+                    disabled={!hasTableDataForModal}
+                  />
+                  <Label htmlFor="includeTable" className={!hasTableDataForModal ? 'text-muted-foreground cursor-not-allowed' : ''}>Tabla de Datos</Label>
+                </div>
+                {/* Checkbox for Bar Chart */}
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="includeBarChart" 
+                    checked={pdfIncludeOptions.barras}
+                    onCheckedChange={(checked) => handlePdfOptionChange('barras', !!checked)}
+                    disabled={!hasChartDataForModal}
+                  />
+                  <Label htmlFor="includeBarChart" className={!hasChartDataForModal ? 'text-muted-foreground cursor-not-allowed' : ''}>Gráfico de Barras</Label>
+                </div>
+                {/* Checkbox for Line Chart */}
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="includeLineChart" 
+                    checked={pdfIncludeOptions.lineas}
+                    onCheckedChange={(checked) => handlePdfOptionChange('lineas', !!checked)}
+                    disabled={!hasChartDataForModal}
+                  />
+                  <Label htmlFor="includeLineChart" className={!hasChartDataForModal ? 'text-muted-foreground cursor-not-allowed' : ''}>Gráfico de Líneas</Label>
+                </div>
+                {/* Checkbox for Pie Chart */}
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="includePieChart" 
+                    checked={pdfIncludeOptions.pastel}
+                    onCheckedChange={(checked) => handlePdfOptionChange('pastel', !!checked)}
+                    disabled={!hasChartDataForModal}
+                  />
+                  <Label htmlFor="includePieChart" className={!hasChartDataForModal ? 'text-muted-foreground cursor-not-allowed' : ''}>Gráfico de Distribución (Pastel)</Label>
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancelar</Button>
+                </DialogClose>
+                <Button 
+                  onClick={() => {
+                    setIsPdfModalOpen(false); 
+                    if (!isExportingPdf) { 
+                      handleExportPdf(pdfIncludeOptions); 
+                    }
+                  }}
+                  disabled={isExportingPdf || (!pdfIncludeOptions.table && !pdfIncludeOptions.barras && !pdfIncludeOptions.lineas && !pdfIncludeOptions.pastel)}
+                >
+                  {isExportingPdf ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generando...</>
+                  ) : (
+                    "Generar PDF"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
       
-      {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {reportData.kpis.map((kpi, index) => (
           <Card key={index} className="p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow bg-white rounded-lg">
@@ -619,7 +746,6 @@ export function ReportViewer() {
         ))}
       </div>
       
-      {/* Tabs: Tabla y Gráficos */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid grid-cols-4 mb-6 bg-slate-100 p-1 rounded-md">
           <TabsTrigger value="tabla" className="flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm">
@@ -641,7 +767,7 @@ export function ReportViewer() {
         </TabsList>
         
         <TabsContent value="tabla" className="mt-0">
-          <Card className="p-0 overflow-hidden border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+          <Card ref={tableContainerRef} className="p-0 overflow-hidden border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-slate-50 border-b border-slate-200">
@@ -688,7 +814,7 @@ export function ReportViewer() {
         </TabsContent>
         
         <TabsContent value="barras" className="mt-0">
-          <Card className="p-0 overflow-hidden border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+          <Card ref={chartContainerRefs.barras} className="p-0 overflow-hidden border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <div className="p-6">
               <Title className="text-slate-800 font-bold text-xl mb-1">Visualización de Datos</Title>
               <Subtitle className="text-slate-500 text-sm mb-4">
@@ -741,7 +867,6 @@ export function ReportViewer() {
                           fill={STRATEGIC_COLORS.chartColors[index % STRATEGIC_COLORS.chartColors.length]} 
                           radius={[4, 4, 0, 0]}
                           barSize={40}
-                          animationDuration={800}
                         />
                       ))}
                     </RechartsBarChart>
@@ -759,7 +884,7 @@ export function ReportViewer() {
         </TabsContent>
         
         <TabsContent value="lineas" className="mt-0">
-          <Card className="p-0 overflow-hidden border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+          <Card ref={chartContainerRefs.lineas} className="p-0 overflow-hidden border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <div className="p-6">
               <Title className="text-slate-800 font-bold text-xl mb-1">Tendencia de Datos</Title>
               <Subtitle className="text-slate-500 text-sm mb-4">
@@ -817,8 +942,6 @@ export function ReportViewer() {
                           strokeWidth={2}
                           dot={{ r: 4, fill: STRATEGIC_COLORS.chartColors[index % STRATEGIC_COLORS.chartColors.length], strokeWidth: 2, stroke: '#fff' }}
                           activeDot={{ r: 6, fill: STRATEGIC_COLORS.chartColors[index % STRATEGIC_COLORS.chartColors.length], strokeWidth: 0 }}
-                          isAnimationActive={true}
-                          animationDuration={800}
                           connectNulls
                         />
                       ))}
@@ -837,7 +960,7 @@ export function ReportViewer() {
         </TabsContent>
         
         <TabsContent value="pastel" className="mt-0">
-          <Card className="p-0 overflow-hidden border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+          <Card ref={chartContainerRefs.pastel} className="p-0 overflow-hidden border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <div className="p-6">
               <Title className="text-slate-800 font-bold text-xl mb-1">Distribución de Datos</Title>
               <Subtitle className="text-slate-500 text-sm mb-4">
@@ -853,17 +976,14 @@ export function ReportViewer() {
                       <RechartsPieChart>
                         <Pie
                           data={(() => {
-                            // Preparar datos para gráfico de pastel
                             const categoryKey = findMainCategory(reportData.chartData) || Object.keys(reportData.chartData[0])[0];
                             const valueKey = findNumericKeys(reportData.chartData)[0];
                             
                             if (!categoryKey || !valueKey) return [];
                             
-                            // Calcular suma total para porcentajes
                             const total = reportData.chartData.reduce((sum, item) => 
                               sum + (typeof item[valueKey] === 'number' ? item[valueKey] : 0), 0);
                             
-                            // Transformar y ordenar los datos
                             return reportData.chartData
                               .map(item => {
                                 const value = typeof item[valueKey] === 'number' ? item[valueKey] : 0;
@@ -877,7 +997,7 @@ export function ReportViewer() {
                                 };
                               })
                               .sort((a, b) => b.value - a.value)
-                              .slice(0, 8); // Limitar a 8 elementos para mejor visualización
+                              .slice(0, 8);
                           })()}
                           dataKey="value"
                           nameKey="name"
@@ -890,17 +1010,14 @@ export function ReportViewer() {
                         >
                           {(() => {
                             const pieData = (() => {
-                              // Preparar datos para gráfico de pastel
                               const categoryKey = findMainCategory(reportData.chartData) || Object.keys(reportData.chartData[0])[0];
                               const valueKey = findNumericKeys(reportData.chartData)[0];
                               
                               if (!categoryKey || !valueKey) return [];
                               
-                              // Calcular suma total para porcentajes
                               const total = reportData.chartData.reduce((sum, item) => 
                                 sum + (typeof item[valueKey] === 'number' ? item[valueKey] : 0), 0);
                               
-                              // Transformar y ordenar los datos
                               return reportData.chartData
                                 .map(item => {
                                   const value = typeof item[valueKey] === 'number' ? item[valueKey] : 0;
@@ -914,7 +1031,7 @@ export function ReportViewer() {
                                   };
                                 })
                                 .sort((a, b) => b.value - a.value)
-                                .slice(0, 8); // Limitar a 8 elementos para mejor visualización
+                                .slice(0, 8);
                             })();
                             
                             return pieData.map((entry, index) => (
@@ -931,7 +1048,6 @@ export function ReportViewer() {
                             const data = payload[0];
                             if (!data) return null;
                             
-                            // Convertir el valor a número para garantizar que es seguro
                             const value = data.value ? Number(data.value) : 0;
                             
                             return (
@@ -970,11 +1086,9 @@ export function ReportViewer() {
                       
                       if (!categoryKey || !valueKey) return null;
                       
-                      // Calcular suma total para porcentajes
                       const total = reportData.chartData.reduce((sum, item) => 
                         sum + (typeof item[valueKey] === 'number' ? item[valueKey] : 0), 0);
                       
-                      // Transformar y ordenar los datos
                       const sortedData = reportData.chartData
                         .map((item, idx) => {
                           const value = typeof item[valueKey] === 'number' ? item[valueKey] : 0;
@@ -1046,6 +1160,18 @@ export function ReportViewer() {
           </AlertDescription>
         </Alert>
       )}
+      {/* --- Loading Modal for PDF Export --- */}
+      <Dialog open={isExportingPdf} modal={true}> {/* Use modal={true} to prevent closing */} 
+        <DialogContent className="sm:max-w-[300px]"> {/* Removed hideCloseButton */} 
+          <DialogHeader>
+            <DialogTitle className="text-center">Generando PDF</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center gap-4 py-8">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Por favor espera...</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
