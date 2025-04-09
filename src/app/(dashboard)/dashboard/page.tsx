@@ -10,7 +10,10 @@ import {
   Clock, 
   TrendingUp,
   Factory,
-  ClipboardList
+  ClipboardList,
+  Package,
+  Droplet,
+  ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,11 +25,76 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { format, subDays } from "date-fns";
+import { es } from "date-fns/locale";
+import { DateRangeProvider, useDateRange } from "@/context/DateRangeContext";
+import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
+import { CompareWithFilter } from "@/components/reports/CompareWithFilter";
+import { useDashboardIndicators } from "@/hooks/useDashboardIndicators";
+import RealVsPlannedTimeByLine from "@/components/analytics/reports/RealVsPlannedTimeByLine";
 
-export default function DashboardPage() {
+// Define types for the data
+interface ProductionStats {
+  totalBoxes: number;
+  totalLiters: number;
+  previousMonthChange: number;
+}
+
+interface ProductionLine {
+  id: number;
+  name: string;
+  status: string;
+}
+
+interface StopData {
+  tipo: string;
+  cantidad: number;
+  tiempo_total: number;
+  porcentaje: number;
+}
+
+interface DowntimeStats {
+  totalHours: string | number;
+  previousMonthChange: number;
+  stops: StopData[];
+}
+
+interface ProductionOrder {
+  id: string;
+  product: string;
+  quantity: number;
+  status: string;
+  date: string;
+}
+
+function DashboardContent() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { 
+    date, 
+    setDate, 
+    selectedPeriod, 
+    setSelectedPeriod,
+    comparisonPeriod,
+    setComparisonPeriod,
+  } = useDateRange();
+  
+  // Usar el hook de indicadores de dashboard para obtener datos reales
+  const {
+    totalOrders,
+    ordersPercentChange,
+    totalBoxes,
+    boxesPercentChange,
+    planCompliance,
+    totalLiters,
+    litersPercentChange,
+    boxesPerHourEfficiency,
+    efficiencyPercentChange,
+    recentOrders,
+    isLoading,
+    error
+  } = useDashboardIndicators(date, selectedPeriod, comparisonPeriod);
 
   // Redirect production chiefs to their portal
   useEffect(() => {
@@ -34,63 +102,6 @@ export default function DashboardPage() {
       router.push("/production-chief");
     }
   }, [session, router]);
-
-  // Datos de ejemplo para las órdenes de producción recientes
-  const recentOrders = [
-    {
-      id: "ORD-001",
-      product: "Agua Tehuacán 600ml",
-      quantity: 5000,
-      status: "completed",
-      date: "2023-06-15",
-    },
-    {
-      id: "ORD-002",
-      product: "Agua Tehuacán 1L",
-      quantity: 3000,
-      status: "in-progress",
-      date: "2023-06-16",
-    },
-    {
-      id: "ORD-003",
-      product: "Agua Mineral 600ml",
-      quantity: 2500,
-      status: "pending",
-      date: "2023-06-17",
-    },
-    {
-      id: "ORD-004",
-      product: "Agua Tehuacán 2L",
-      quantity: 1500,
-      status: "completed",
-      date: "2023-06-14",
-    },
-  ];
-
-  // Datos de ejemplo para los eventos de paro recientes
-  const recentDowntimeEvents = [
-    {
-      id: "DT-001",
-      line: "Línea 1",
-      reason: "Mantenimiento preventivo",
-      duration: 45,
-      date: "2023-06-15",
-    },
-    {
-      id: "DT-002",
-      line: "Línea 2",
-      reason: "Fallo eléctrico",
-      duration: 120,
-      date: "2023-06-14",
-    },
-    {
-      id: "DT-003",
-      line: "Línea 3",
-      reason: "Cambio de formato",
-      duration: 60,
-      date: "2023-06-16",
-    },
-  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -118,214 +129,212 @@ export default function DashboardPage() {
     }
   };
 
+  // Función para determinar el color y el icono del cambio porcentual
+  const getChangeDisplay = (percentChange: number) => {
+    if (percentChange === 0) return { color: "text-gray-500", icon: null };
+    
+    if (percentChange > 0) {
+      return { 
+        color: "text-success", 
+        icon: <TrendingUp className="h-3 w-3 mr-1" /> 
+      };
+    } else {
+      return { 
+        color: "text-warning", 
+        icon: <Activity className="h-3 w-3 mr-1" /> 
+      };
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold text-black">Dashboard</h1>
-        <p className="text-black">
-          Bienvenido, {session?.user?.name}. Aquí tienes un resumen de la actividad de producción.
-        </p>
+      <div className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <DateRangeFilter
+            date={date}
+            onDateChange={setDate}
+            selectedPeriod={selectedPeriod}
+            onPeriodChange={setSelectedPeriod}
+          />
+          <CompareWithFilter
+            selectedComparison={comparisonPeriod}
+            onComparisonChange={setComparisonPeriod}
+          />
+        </div>
       </div>
 
-      {/* Stats Overview Cards */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
-          <div className="absolute top-0 left-0 h-1 w-full bg-primary"></div>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-text-secondary">Órdenes de Producción</p>
-                <h3 className="text-3xl font-bold text-text-primary">24</h3>
-                <div className="flex items-center text-sm font-medium text-success">
-                  <TrendingUp className="mr-1 h-4 w-4" />
-                  <span>8% vs. mes anterior</span>
-                </div>
-              </div>
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
-                <ClipboardList className="h-7 w-7" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
-          <div className="absolute top-0 left-0 h-1 w-full bg-info"></div>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-text-secondary">Líneas de Producción</p>
-                <h3 className="text-3xl font-bold text-text-primary">4</h3>
-                <div className="flex items-center text-sm font-medium text-success">
-                  <CheckCircle2 className="mr-1 h-4 w-4" />
-                  <span>Todas operativas</span>
-                </div>
-              </div>
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-info/10 text-info transition-transform duration-300 group-hover:scale-110">
-                <Factory className="h-7 w-7" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
-          <div className="absolute top-0 left-0 h-1 w-full bg-warning"></div>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-text-secondary">Tiempo de Paro</p>
-                <h3 className="text-3xl font-bold text-text-primary">3.5 hrs</h3>
-                <div className="flex items-center text-sm font-medium text-error">
-                  <AlertTriangle className="mr-1 h-4 w-4" />
-                  <span>12% vs. mes anterior</span>
-                </div>
-              </div>
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-warning/10 text-warning transition-transform duration-300 group-hover:scale-110">
-                <Clock className="h-7 w-7" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
-          <div className="absolute top-0 left-0 h-1 w-full bg-success"></div>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-text-secondary">Producción Total</p>
-                <h3 className="text-3xl font-bold text-text-primary">48,500</h3>
-                <div className="flex items-center text-sm font-medium text-success">
-                  <TrendingUp className="mr-1 h-4 w-4" />
-                  <span>5% vs. mes anterior</span>
-                </div>
-              </div>
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success transition-transform duration-300 group-hover:scale-110">
-                <Activity className="h-7 w-7" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Orders and Downtime Events */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md">
-          <CardHeader className="border-b border-border/50 bg-surface/50 pb-2">
-            <CardTitle className="text-lg font-bold text-text-primary">Órdenes de Producción Recientes</CardTitle>
-            <CardDescription className="text-text-secondary">
-              Últimas órdenes creadas o actualizadas
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-surface/70 hover:bg-surface">
-                  <TableHead className="font-medium text-text-primary">ID</TableHead>
-                  <TableHead className="font-medium text-text-primary">Producto</TableHead>
-                  <TableHead className="font-medium text-text-primary text-right">Cantidad</TableHead>
-                  <TableHead className="font-medium text-text-primary">Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentOrders.map((order) => (
-                  <TableRow key={order.id} className="hover:bg-surface/50">
-                    <TableCell className="font-medium text-text-primary">{order.id}</TableCell>
-                    <TableCell className="text-text-primary">{order.product}</TableCell>
-                    <TableCell className="text-text-primary text-right">{order.quantity.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <div className={`px-2 py-1 rounded-full text-xs inline-flex items-center justify-center ${getStatusColor(order.status)}`}>
-                        {getStatusText(order.status)}
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <>
+          {/* Stats Overview Cards */}
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+              <div className="absolute top-0 left-0 h-1 w-full bg-primary"></div>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-text-secondary">Órdenes de Producción</p>
+                    <h3 className="text-3xl font-bold text-text-primary">{totalOrders}</h3>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center text-sm font-medium text-success">
+                        <TrendingUp className="mr-1 h-4 w-4" />
+                        <span>Período seleccionado</span>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <div className="mt-4 flex justify-end">
-              <Button variant="outline" className="text-text-primary hover:bg-primary/5 hover:text-primary hover:border-primary focus:ring-2 focus:ring-primary/30 transition-all duration-200">
-                Ver todas las órdenes
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                      <div className={`text-xs flex items-center font-medium ${getChangeDisplay(ordersPercentChange).color}`}>
+                        {getChangeDisplay(ordersPercentChange).icon}
+                        <span>{ordersPercentChange > 0 ? '+' : ''}{ordersPercentChange.toFixed(1)}% vs período anterior</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+                    <ClipboardList className="h-7 w-7" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md">
-          <CardHeader className="border-b border-border/50 bg-surface/50 pb-2">
-            <CardTitle className="text-lg font-bold text-text-primary">Eventos de Paro Recientes</CardTitle>
-            <CardDescription className="text-text-secondary">
-              Paros de producción en las últimas 24 horas
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-surface/70 hover:bg-surface">
-                  <TableHead className="font-medium text-text-primary">ID</TableHead>
-                  <TableHead className="font-medium text-text-primary">Línea</TableHead>
-                  <TableHead className="font-medium text-text-primary">Razón</TableHead>
-                  <TableHead className="font-medium text-text-primary text-right">Duración (min)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentDowntimeEvents.map((event) => (
-                  <TableRow key={event.id} className="hover:bg-surface/50">
-                    <TableCell className="font-medium text-text-primary">{event.id}</TableCell>
-                    <TableCell className="text-text-primary">{event.line}</TableCell>
-                    <TableCell className="text-text-primary">{event.reason}</TableCell>
-                    <TableCell className="text-text-primary text-right">{event.duration}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <div className="mt-4 flex justify-end">
-              <Button variant="outline" className="text-text-primary hover:bg-primary/5 hover:text-primary hover:border-primary focus:ring-2 focus:ring-primary/30 transition-all duration-200">
-                Ver todos los paros
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+              <div className="absolute top-0 left-0 h-1 w-full bg-info"></div>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-text-secondary">Cajas Producidas</p>
+                    <h3 className="text-3xl font-bold text-text-primary">{totalBoxes.toLocaleString()}</h3>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center text-sm font-medium text-success">
+                        <CheckCircle2 className="mr-1 h-4 w-4" />
+                        <span>{planCompliance.toFixed(1)}% del plan</span>
+                      </div>
+                      <div className={`text-xs flex items-center font-medium ${getChangeDisplay(boxesPercentChange).color}`}>
+                        {getChangeDisplay(boxesPercentChange).icon}
+                        <span>{boxesPercentChange > 0 ? '+' : ''}{boxesPercentChange.toFixed(1)}% vs período anterior</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-info/10 text-info transition-transform duration-300 group-hover:scale-110">
+                    <Package className="h-7 w-7" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-      {/* Production Summary Section */}
-      <div className="mt-4">
-        <Card className="overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md">
-          <CardHeader className="border-b border-border/50 bg-surface/50 pb-2">
-            <CardTitle className="text-lg font-bold text-text-primary">Resumen de Producción</CardTitle>
-            <CardDescription className="text-text-secondary">
-              Rendimiento general de la planta
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              <div className="flex flex-col items-center justify-center space-y-2 rounded-lg border border-border bg-surface/30 p-4 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                  <BarChart2 className="h-6 w-6 text-primary" />
+            <Card className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+              <div className="absolute top-0 left-0 h-1 w-full bg-warning"></div>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-text-secondary">Litros Producidos</p>
+                    <h3 className="text-3xl font-bold text-text-primary">{totalLiters.toLocaleString()}</h3>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center text-sm font-medium text-warning">
+                        <Activity className="mr-1 h-4 w-4" />
+                        <span>Total en el período</span>
+                      </div>
+                      <div className={`text-xs flex items-center font-medium ${getChangeDisplay(litersPercentChange).color}`}>
+                        {getChangeDisplay(litersPercentChange).icon}
+                        <span>{litersPercentChange > 0 ? '+' : ''}{litersPercentChange.toFixed(1)}% vs período anterior</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-warning/10 text-warning transition-transform duration-300 group-hover:scale-110">
+                    <Droplet className="h-7 w-7" />
+                  </div>
                 </div>
-                <h4 className="text-lg font-semibold text-text-primary">Eficiencia</h4>
-                <div className="text-2xl font-bold text-primary">92%</div>
-                <p className="text-sm text-text-secondary">Promedio mensual</p>
-              </div>
-              
-              <div className="flex flex-col items-center justify-center space-y-2 rounded-lg border border-border bg-surface/30 p-4 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
-                  <TrendingUp className="h-6 w-6 text-success" />
+              </CardContent>
+            </Card>
+
+            <Card className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+              <div className="absolute top-0 left-0 h-1 w-full bg-success"></div>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-text-secondary">Eficiencia</p>
+                    <h3 className="text-3xl font-bold text-text-primary">{boxesPerHourEfficiency.toFixed(1)}%</h3>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center text-sm font-medium text-success">
+                        <TrendingUp className="mr-1 h-4 w-4" />
+                        <span>Cajas por hora</span>
+                      </div>
+                      <div className={`text-xs flex items-center font-medium ${getChangeDisplay(efficiencyPercentChange).color}`}>
+                        {getChangeDisplay(efficiencyPercentChange).icon}
+                        <span>{efficiencyPercentChange > 0 ? '+' : ''}{efficiencyPercentChange.toFixed(1)}% vs período anterior</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success transition-transform duration-300 group-hover:scale-110">
+                    <Activity className="h-7 w-7" />
+                  </div>
                 </div>
-                <h4 className="text-lg font-semibold text-text-primary">Cumplimiento</h4>
-                <div className="text-2xl font-bold text-success">95%</div>
-                <p className="text-sm text-text-secondary">De órdenes planificadas</p>
-              </div>
-              
-              <div className="flex flex-col items-center justify-center space-y-2 rounded-lg border border-border bg-surface/30 p-4 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10">
-                  <Clock className="h-6 w-6 text-warning" />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Orders and Downtime Events */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Card className="overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-300 hover:shadow-md">
+              <CardHeader className="border-b border-border/50 bg-surface/50 pb-2">
+                <CardTitle className="text-lg font-bold text-text-primary">Órdenes de Producción Recientes</CardTitle>
+                <CardDescription className="text-text-secondary">
+                  Últimas órdenes creadas o actualizadas
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-surface/70 hover:bg-surface">
+                      <TableHead className="font-medium text-text-primary">Número de Orden</TableHead>
+                      <TableHead className="font-medium text-text-primary">Línea</TableHead>
+                      <TableHead className="font-medium text-text-primary">Producto</TableHead>
+                      <TableHead className="font-medium text-text-primary text-right">Producidas</TableHead>
+                      <TableHead className="font-medium text-text-primary text-right">Planeadas</TableHead>
+                      <TableHead className="font-medium text-text-primary">Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentOrders.map((order) => (
+                      <TableRow key={order.id} className="hover:bg-surface/50">
+                        <TableCell className="font-medium text-text-primary">{order.id}</TableCell>
+                        <TableCell className="text-text-primary">{order.line}</TableCell>
+                        <TableCell className="text-text-primary">{order.product}</TableCell>
+                        <TableCell className="text-text-primary text-right">{order.producedBoxes.toLocaleString()}</TableCell>
+                        <TableCell className="text-text-primary text-right">{order.plannedBoxes.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div className={`px-2 py-1 rounded-full text-xs inline-flex items-center justify-center ${getStatusColor(order.status)}`}>
+                            {getStatusText(order.status)}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="mt-4 flex justify-end">
+                  <Button 
+                    variant="outline" 
+                    className="text-text-primary hover:bg-primary/5 hover:text-primary hover:border-primary focus:ring-2 focus:ring-primary/30 transition-all duration-200"
+                    onClick={() => router.push('/production-orders')}
+                  >
+                    Ver todas las órdenes
+                  </Button>
                 </div>
-                <h4 className="text-lg font-semibold text-text-primary">Tiempo Activo</h4>
-                <div className="text-2xl font-bold text-warning">87%</div>
-                <p className="text-sm text-text-secondary">Disponibilidad</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
+
+            <RealVsPlannedTimeByLine />
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <DateRangeProvider>
+      <DashboardContent />
+    </DateRangeProvider>
   );
 } 

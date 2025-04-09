@@ -259,3 +259,10 @@ model DesviacionCalidad {
 
   @@map("desviaciones_calidad")
 }
+
+model Suggestion {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      String
+  message   String
+  date      DateTime
+}

@@ -102,7 +102,7 @@ export default function RealVsPlannedTimeByLine() {
   return (
     <ReportCard
       title="Tiempo Real vs Planificado por Línea"
-      subtitle="Comparación de tiempos de producción real vs planificado por línea de producción"
+      subtitle="Comparación de tiempos de producción real vs planificado por línea"
       headerExtra={
         <Button
           variant="ghost"
@@ -114,7 +114,7 @@ export default function RealVsPlannedTimeByLine() {
         </Button>
       }
       className="p-0 relative"
-      headerClassName="bg-[#e8f6e9]"
+      headerClassName="bg-surface/50"
     >
       <div className="border-b border-border/50" />
       <div className="flex flex-col gap-2">

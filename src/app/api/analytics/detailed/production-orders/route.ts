@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { Produccion, Producto, Sabor, Modelo, Tamaño, LineaProduccion } from "@prisma/client";
 
 interface ProductionOrderWithRelations extends Produccion {
+  numeroOrden: number;
   producto: Producto & {
     sabor: Sabor;
     modelo: Modelo;
@@ -43,6 +44,7 @@ export async function GET(request: Request) {
     // Transform data to include compliance percentage
     const data = orders.map((order) => ({
       id: order.id,
+      numeroOrden: order.numeroOrden,
       fechaProduccion: order.fechaProduccion,
       turno: order.turno,
       producto: {

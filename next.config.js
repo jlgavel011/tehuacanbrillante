@@ -11,7 +11,12 @@ const nextConfig = {
   compiler: {
     // Enables the styled-components SWC transform
     styledComponents: true
-  }
+  },
+  
+  // Ensure environment variables are available to the client
+  env: {
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  },
 }
 
 module.exports = nextConfig 

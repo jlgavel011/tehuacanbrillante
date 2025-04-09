@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { Providers } from "./providers";
 import "@/lib/db";
+import { ChatBubble } from '@/components/ChatBubble';
 
 export const metadata: Metadata = {
   title: "Tehuacán Brillante - Sistema de Gestión de Producción",
@@ -30,6 +31,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <Toaster position="top-right" />
+          <ChatBubble />
         </Providers>
       </body>
     </html>
