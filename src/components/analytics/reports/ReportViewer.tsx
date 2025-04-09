@@ -549,7 +549,7 @@ export function ReportViewer() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <div className="flex items-center justify-between mb-2">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">{reportTitle}</h2>

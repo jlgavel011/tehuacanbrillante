@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@tremor/react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ProductionChiefPerformance } from "@/components/analytics/reports/ProductionChiefPerformance";
 import { MostProducedProducts } from "@/components/analytics/reports/MostProducedProducts";
 import { MostProducedFlavors } from "@/components/analytics/reports/MostProducedFlavors";
@@ -60,6 +60,7 @@ import { ProductionHeatmapByDay } from "@/components/analytics/reports/Productio
 import { ProductionHeatmapByHour } from "@/components/analytics/reports/ProductionHeatmapByHour";
 import { ReportBuilder } from "@/components/analytics/reports/ReportBuilder";
 import { ReportViewer } from "@/components/analytics/reports/ReportViewer";
+import { PencilRuler, BarChart2 } from "lucide-react";
 
 function AnalyticsContent() {
   const { 
@@ -103,7 +104,7 @@ function AnalyticsContent() {
   } = useProductionIndicators();
 
   return (
-    <div className="flex flex-col gap-4 p-4 bg-background">
+    <div className="flex flex-col gap-4 p-4 bg-background min-h-[calc(100vh-4rem)]">
       <div className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
         <h1 className="text-xl font-semibold">Analítica y Reportes</h1>
         <div className="flex items-center gap-4">
@@ -120,7 +121,7 @@ function AnalyticsContent() {
         </div>
       </div>
 
-      <Tabs defaultValue="strategic" className="w-full">
+      <Tabs defaultValue="strategic" className="w-full flex flex-col flex-grow">
         <div className="flex items-center justify-between mb-4">
           <TabsList className="bg-white shadow-sm">
             <TabsTrigger value="strategic" className="data-[state=active]:bg-primary/10">
@@ -374,19 +375,37 @@ function AnalyticsContent() {
           </div>
         </TabsContent>
 
-        <TabsContent value="detailed" className="space-y-4">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <h2 className="text-lg font-semibold mb-4 p-2 rounded-md bg-[#e2f1f8]">Explorador de Reportes Avanzado</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-              <div className="lg:col-span-1 bg-gray-50 p-4 rounded-lg shadow-sm">
-                <ReportBuilder />
-              </div>
-              <div className="lg:col-span-3">
-                <ReportViewer />
-              </div>
-            </div>
-          </div>
+        <TabsContent value="detailed" className="mt-2 space-y-8 flex flex-col flex-grow">
+          {/* Sección 1: Constructor del Reporte (Wizard) */}
+          <Card className="bg-gradient-to-br from-slate-50 to-white border border-slate-200 shadow-lg rounded-xl overflow-hidden flex-shrink-0">
+            <CardHeader className="bg-slate-100/80 border-b border-slate-200 p-4">
+               <div className="flex items-center gap-3">
+                   <PencilRuler className="w-6 h-6 text-sky-600" />
+                   <CardTitle className="text-lg font-semibold text-slate-800">
+                     1. Define tu Reporte Personalizado
+                   </CardTitle>
+               </div>
+            </CardHeader>
+            <CardContent className="p-6">
+               <ReportBuilder />
+            </CardContent>
+          </Card>
+        
+          {/* Sección 2: Visualización del Reporte */}
+          <Card className="border border-slate-200 shadow-lg rounded-xl overflow-hidden flex flex-col flex-grow">
+            <CardHeader className="bg-slate-100/80 border-b border-slate-200 p-4">
+               <div className="flex items-center gap-3">
+                  <BarChart2 className="w-6 h-6 text-emerald-600" />
+                  <CardTitle className="text-lg font-semibold text-slate-800">
+                     2. Visualiza los Resultados
+                  </CardTitle>
+               </div>
+            </CardHeader>
+            <CardContent className="flex-grow flex">
+               <ReportViewer /> 
+            </CardContent>
+          </Card>
+        
         </TabsContent>
       </Tabs>
     </div>
