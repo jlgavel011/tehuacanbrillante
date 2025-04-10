@@ -202,6 +202,8 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
 
   // Agregar el estado isFinalizingProduction
   const [isFinalizingProduction, setIsFinalizingProduction] = useState<boolean>(false);
+  // Estado para rastrear el ID del historial activo
+  const [activeHistorialId, setActiveHistorialId] = useState<string | null>(null);
 
   // Add function to fetch quality deviations
   const fetchDesviacionesCalidad = async (lineaId: string) => {
@@ -463,6 +465,37 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
       console.log("Order data:", orderData);
       setOrder(orderData);
       
+      // Set total cajas producidas - Asegurarnos de que usamos el valor del backend
+      console.log(`Estableciendo cajas producidas del backend: ${orderData.cajasProducidas}`);
+      setTotalCajasProducidas(orderData.cajasProducidas || 0);
+      
+      // También debemos obtener el historial activo para esta orden
+      try {
+        const historialResponse = await fetch(`/api/production-orders/${orderId}/history`);
+        if (historialResponse.ok) {
+          const historiales = await historialResponse.json();
+          console.log("Historiales de producción:", historiales);
+          
+          // Buscar el historial activo (el más reciente que esté activo)
+          const historialesActivos = historiales.historialesProduccion?.filter((h: any) => h.activo === true) || [];
+          if (historialesActivos.length > 0) {
+            // Ordenar por fecha de inicio descendente y tomar el primero
+            const historialActivo = historialesActivos.sort((a: any, b: any) => 
+              new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()
+            )[0];
+            
+            console.log("Historial activo encontrado:", historialActivo.id);
+            setActiveHistorialId(historialActivo.id);
+          } else {
+            console.log("No se encontró un historial activo para esta orden");
+            setActiveHistorialId(null);
+          }
+        }
+      } catch (historialError) {
+        console.error("Error al obtener historiales:", historialError);
+        // No mostramos error al usuario porque es información secundaria
+      }
+      
       // Check for stored lastUpdateTime in localStorage first
       const storedUpdateTime = getStoredLastUpdateTime(orderId);
       
@@ -484,9 +517,6 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
         setLastUpdateTime(now);
         storeLastUpdateTime(orderId, now);
       }
-      
-      // Set total cajas producidas
-      setTotalCajasProducidas(orderData.cajasProducidas || 0);
     } catch (err) {
       console.error("Error fetching order:", err);
       setError(err instanceof Error ? err.message : "Error al obtener la orden de producción");
@@ -576,6 +606,12 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
       
       // Get the updated order with lastUpdateTime from API
       const updatedOrder = await response.json();
+      
+      // Save the active historial ID if provided in the response
+      if (updatedOrder.activeHistorialId) {
+        console.log("Storing active historial ID from API:", updatedOrder.activeHistorialId);
+        setActiveHistorialId(updatedOrder.activeHistorialId);
+      }
       
       // Use lastUpdateTime from API response
       if (updatedOrder.lastUpdateTime) {
@@ -679,34 +715,103 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
     try {
       const hourlyProductionValue = parseInt(hourlyProduction);
       
-      // Calculate total cajas produced
-      const newCajasProducidas = totalCajasProducidas + hourlyProductionValue;
+      // Update total cajas en el estado local
+      const prevCajasProducidas = totalCajasProducidas;
+      const newTotal = prevCajasProducidas + hourlyProductionValue;
+      console.log(`Actualizando contador local: ${prevCajasProducidas} + ${hourlyProductionValue} = ${newTotal}`);
+      setTotalCajasProducidas(newTotal);
       
       // Crear la nueva fecha de actualización antes de la solicitud
       const now = new Date();
       
-      const response = await fetch(`/api/production-orders/${order.id}/update`, {
+      // Preparar los paros para enviar
+      const allParos = [...parosMantenimiento, ...parosCalidad, ...parosOperacion];
+      
+      // 1. PRIMERO: Actualizar las cajas usando el nuevo endpoint simplificado
+      console.log("Actualizando cajas producidas:", {
+        hourlyProduction: hourlyProductionValue,
+        activeHistorialId
+      });
+      
+      const responseCajas = await fetch(`/api/production-orders/${order.id}/update-cajas`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          cajasProducidas: newCajasProducidas,
-          lastUpdateTime: now.toISOString() // Enviar la hora actual al servidor
+          hourlyProduction: hourlyProductionValue,
+          activeHistorialId: activeHistorialId
         }),
       });
       
-      if (!response.ok) {
-        throw new Error("Error al actualizar la producción");
+      if (!responseCajas.ok) {
+        throw new Error("Error al actualizar las cajas producidas");
       }
-
-      const data = await response.json();
       
-      // Update total cajas
-      setTotalCajasProducidas(newCajasProducidas);
+      const dataCajas = await responseCajas.json();
+      
+      // Si la API devuelve un ID de historial activo, actualizarlo
+      if (dataCajas.activeHistorialId) {
+        console.log("Actualizando ID del historial activo desde update-cajas:", dataCajas.activeHistorialId);
+        setActiveHistorialId(dataCajas.activeHistorialId);
+      }
+      
+      // 2. SEGUNDO: Si hay paros, actualizarlos con el endpoint existente
+      if (allParos.length > 0) {
+        console.log("Sending paros data:", {
+          paros: allParos,
+          lastUpdateTime: now.toISOString(),
+          activeHistorialId: dataCajas.activeHistorialId || activeHistorialId
+        });
+        
+        const responseParos = await fetch(`/api/production-orders/${order.id}/update`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cajasProducidas: newTotal, // Solo enviar para compatibilidad, no se usará para actualizar
+            hourlyProduction: 0, // Enviar 0 para que no actualice cajas nuevamente
+            paros: allParos.map(paro => ({
+              ...paro,
+              // Ensure IDs are valid before sending
+              sistemaId: paro.sistemaId && paro.sistemaId !== "" ? paro.sistemaId : undefined,
+              subsistemaId: paro.subsistemaId && paro.subsistemaId !== "placeholder" ? paro.subsistemaId : undefined,
+              subsubsistemaId: paro.subsubsistemaId && paro.subsubsistemaId !== "placeholder" ? paro.subsubsistemaId : undefined,
+              desviacionCalidadId: paro.desviacionCalidadId && paro.desviacionCalidadId !== "placeholder" ? paro.desviacionCalidadId : undefined,
+              materiaPrimaId: paro.materiaPrimaId && paro.materiaPrimaId !== "placeholder" ? paro.materiaPrimaId : undefined,
+              // Asegurar que el tiempo de paro se envía como número
+              tiempoMinutos: parseInt(paro.tiempoMinutos.toString())
+            })),
+            lastUpdateTime: now.toISOString(), // Enviar la hora actual al servidor
+            activeHistorialId: dataCajas.activeHistorialId || activeHistorialId, // Usar el ID actualizado del historial
+            // Incluir resumen de paros para facilitar el procesamiento del backend
+            resumenParos: {
+              cantidadTotal: allParos.length,
+              tiempoTotal: allParos.reduce((sum, paro) => sum + paro.tiempoMinutos, 0),
+              cantidadMantenimiento: parosMantenimiento.length,
+              tiempoMantenimiento: parosMantenimiento.reduce((sum, paro) => sum + paro.tiempoMinutos, 0),
+              cantidadCalidad: parosCalidad.length,
+              tiempoCalidad: parosCalidad.reduce((sum, paro) => sum + paro.tiempoMinutos, 0),
+              cantidadOperacion: parosOperacion.length,
+              tiempoOperacion: parosOperacion.reduce((sum, paro) => sum + paro.tiempoMinutos, 0)
+            }
+          }),
+        });
+        
+        if (!responseParos.ok) {
+          console.warn("Warning: Los paros se registraron pero hubo un error", await responseParos.text());
+          // No hacer throw para no interrumpir el flujo principal
+        }
+      }
       
       // Reset hourly production input
       setHourlyProduction("");
+      
+      // Reset paros lists
+      setParosMantenimiento([]);
+      setParosCalidad([]);
+      setParosOperacion([]);
       
       // Show success message
       toast.success("Producción actualizada correctamente");
@@ -769,6 +874,9 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
     setParosCalidad([]);
     setParosOperacion([]);
     
+    // Reset finishParos explicitly to avoid reusing old paros
+    setFinishParos([]);
+    
     // Show the add paro dialog if there are stop minutes
     if (calculatedStopMinutes > 0) {
       // Find the Mantenimiento stop type
@@ -803,8 +911,13 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
     try {
       if (!order) return;
 
-      // Usar paros específicos para finalización
-      const allParos = [...finishParos];
+      // Usar paros específicos para finalización si existen, sino usar la combinación de todos los paros
+      const allParos = finishParos.length > 0 
+        ? finishParos 
+        : [...parosMantenimiento, ...parosCalidad, ...parosOperacion];
+      
+      // Asegurarse de que estemos enviando los paros correctos
+      console.log(`Enviando ${allParos.length} paros para ${isFinalizingProduction ? 'finalización' : 'actualización'} de orden`);
       
       // Comprobar si tenemos el valor de producción final
       // Usando el valor almacenado en finalHourlyProduction
@@ -821,7 +934,7 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
       // Validar paros (sólo si hay tiempo de paro asignado)
       if (remainingDowntimeMinutes > 0) {
         // Calculate the total assigned time
-        const totalAssignedTime = [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+        const totalAssignedTime = allParos
           .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
           .reduce((sum, paro) => sum + paro.tiempoMinutos, 0);
         
@@ -845,57 +958,110 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
         });
       }
       
-      console.log("Sending production data:", {
-        cajasProducidas: totalCajasProducidas + parsedProduccionFinal,
-        paros: allParos,
-        isFinalizingProduction,
-        tiempoTranscurridoHoras
+      // Actualizar cajas producidas primero usando el nuevo endpoint
+      console.log("Actualizando cajas producidas:", {
+        hourlyProduction: parsedProduccionFinal,
+        activeHistorialId
       });
-
-      // Use the appropriate endpoint based on whether we're finalizing or updating
-      const endpoint = isFinalizingProduction ? 
-        `/api/production-orders/${order.id}/finish` :
-        `/api/production-orders/${order.id}/update`;
-
-      const response = await fetch(endpoint, {
+      
+      const responseCajas = await fetch(`/api/production-orders/${order.id}/update-cajas`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          cajasProducidas: totalCajasProducidas + parsedProduccionFinal,
-          paros: allParos.map(paro => ({
-            ...paro,
-            // Ensure IDs are valid before sending
-            sistemaId: paro.sistemaId && paro.sistemaId !== "" ? paro.sistemaId : undefined,
-            subsistemaId: paro.subsistemaId && paro.subsistemaId !== "placeholder" ? paro.subsistemaId : undefined,
-            subsubsistemaId: paro.subsubsistemaId && paro.subsubsistemaId !== "placeholder" ? paro.subsubsistemaId : undefined,
-            desviacionCalidadId: paro.desviacionCalidadId && paro.desviacionCalidadId !== "placeholder" ? paro.desviacionCalidadId : undefined,
-            materiaPrimaId: paro.materiaPrimaId && paro.materiaPrimaId !== "placeholder" ? paro.materiaPrimaId : undefined
-          })),
-          isFinalizingProduction,
-          tiempoTranscurridoHoras
+          hourlyProduction: parsedProduccionFinal,
+          activeHistorialId: activeHistorialId
         }),
       });
-        
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = "Error al procesar la producción";
-        
-        try {
-          // Try to parse as JSON
-          const errorData = JSON.parse(errorText);
-          console.error("API error response:", errorData);
-          errorMessage = errorData?.message || errorMessage;
-        } catch (e) {
-          // If not JSON, use the raw text
-          console.error("API error response (raw):", errorText);
-        }
-        
-        throw new Error(errorMessage);
+      
+      if (!responseCajas.ok) {
+        throw new Error("Error al actualizar las cajas producidas");
       }
       
-      const data = await response.json();
+      const dataCajas = await responseCajas.json();
+      
+      // Si la API devuelve un ID de historial activo, actualizarlo
+      if (dataCajas.activeHistorialId) {
+        console.log("Actualizando ID del historial activo desde update-cajas:", dataCajas.activeHistorialId);
+        setActiveHistorialId(dataCajas.activeHistorialId);
+      }
+      
+      // Actualizar estado local de cajas producidas
+      setTotalCajasProducidas(prevCajas => prevCajas + parsedProduccionFinal);
+      
+      // Si hay paros o es una finalización, proceder con el otro endpoint
+      if (allParos.length > 0 || isFinalizingProduction) {
+        console.log("Sending paros and finalization data:", {
+          paros: allParos,
+          isFinalizingProduction,
+          tiempoTranscurridoHoras,
+          activeHistorialId: dataCajas.activeHistorialId || activeHistorialId
+        });
+        
+        // Use the appropriate endpoint based on whether we're finalizing or updating
+        const endpoint = isFinalizingProduction ? 
+          `/api/production-orders/${order.id}/finish` :
+          `/api/production-orders/${order.id}/update`;
+
+        const responseParos = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cajasProducidas: totalCajasProducidas + parsedProduccionFinal, // Solo para compatibilidad, no se usará para actualizar
+            hourlyProduction: 0, // Enviar 0 para que no actualice cajas nuevamente
+            paros: allParos.map(paro => ({
+              ...paro,
+              // Ensure IDs are valid before sending
+              sistemaId: paro.sistemaId && paro.sistemaId !== "" ? paro.sistemaId : undefined,
+              subsistemaId: paro.subsistemaId && paro.subsistemaId !== "placeholder" ? paro.subsistemaId : undefined,
+              subsubsistemaId: paro.subsubsistemaId && paro.subsubsistemaId !== "placeholder" ? paro.subsubsistemaId : undefined,
+              desviacionCalidadId: paro.desviacionCalidadId && paro.desviacionCalidadId !== "placeholder" ? paro.desviacionCalidadId : undefined,
+              materiaPrimaId: paro.materiaPrimaId && paro.materiaPrimaId !== "placeholder" ? paro.materiaPrimaId : undefined,
+              // Asegurar que el tiempo de paro se envía como número
+              tiempoMinutos: parseInt(paro.tiempoMinutos.toString())
+            })),
+            isFinalizingProduction,
+            tiempoTranscurridoHoras,
+            activeHistorialId: dataCajas.activeHistorialId || activeHistorialId,
+            // Incluir resumen de paros para facilitar el procesamiento del backend
+            resumenParos: {
+              cantidadTotal: allParos.length,
+              tiempoTotal: allParos.reduce((sum, paro) => sum + paro.tiempoMinutos, 0),
+              cantidadMantenimiento: parosMantenimiento.length,
+              tiempoMantenimiento: parosMantenimiento.reduce((sum, paro) => sum + paro.tiempoMinutos, 0),
+              cantidadCalidad: parosCalidad.length,
+              tiempoCalidad: parosCalidad.reduce((sum, paro) => sum + paro.tiempoMinutos, 0),
+              cantidadOperacion: parosOperacion.length,
+              tiempoOperacion: parosOperacion.reduce((sum, paro) => sum + paro.tiempoMinutos, 0)
+            }
+          }),
+        });
+        
+        if (!responseParos.ok && isFinalizingProduction) {
+          const errorText = await responseParos.text();
+          let errorMessage = "Error al procesar la producción";
+          
+          try {
+            // Try to parse as JSON
+            const errorData = JSON.parse(errorText);
+            console.error("API error response:", errorData);
+            errorMessage = errorData?.message || errorMessage;
+          } catch (e) {
+            // If not JSON, use the raw text
+            console.error("API error response (raw):", errorText);
+          }
+          
+          // Solo lanzar error si es una finalización
+          if (isFinalizingProduction) {
+            throw new Error(errorMessage);
+          } else {
+            console.warn("Warning: Los paros se registraron pero hubo un error", errorText);
+          }
+        }
+      }
       
       // Actualizar explícitamente la hora de última actualización
       const now = new Date();
@@ -961,7 +1127,14 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
   const finishParoAssignment = () => {
     // Combine all paros
     const allParos = [...parosMantenimiento, ...parosCalidad, ...parosOperacion];
+    
+    // Guardar explícitamente en finishParos para la finalización
     setFinishParos(allParos);
+    
+    console.log(`Finalizando asignación de paros: ${allParos.length} paros registrados (${
+      parosMantenimiento.length} mantenimiento, ${
+      parosCalidad.length} calidad, ${
+      parosOperacion.length} operación)`);
     
     // Close the dialog
     setShowAddParoDialog(false);
@@ -1481,6 +1654,14 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
         const errorData = await response.json().catch(() => null);
         console.error("API error response:", errorData);
         throw new Error(errorData?.message || "Error al reabrir la producción");
+      }
+      
+      const data = await response.json();
+      
+      // Guardar ID del historial activo si viene en la respuesta
+      if (data.activeHistorialId) {
+        console.log("Setting active historial ID from reopen response:", data.activeHistorialId);
+        setActiveHistorialId(data.activeHistorialId);
       }
       
       // Reset state for hourly production

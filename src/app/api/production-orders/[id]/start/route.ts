@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
-import { prisma } from "@/lib/db";
+import { authOptions } from "@/lib/auth/auth-options";
+import { prisma } from "@/lib/db/prisma";
 
 export async function POST(
   request: NextRequest,
@@ -66,6 +66,26 @@ export async function POST(
       },
     });
 
+    // Create a new production history entry
+    let newHistorialId = null;
+    try {
+      const newHistorial = await prisma.produccionHistorial.create({
+        data: {
+          produccionId: params.id,
+          userId: session.user.id,
+          lineaProduccionId: order.lineaProduccionId,
+          productoId: order.productoId,
+          fechaInicio: now,
+          activo: true
+        }
+      });
+      newHistorialId = newHistorial.id;
+      console.log("[START] Created new ProduccionHistorial entry for order:", params.id);
+    } catch (error) {
+      console.error("[PRODUCTION_HISTORY_CREATE]", error);
+      // Continue even if history creation fails
+    }
+
     // Find the velocidadProduccion for this product on this production line
     const productoEnLinea = updatedOrder.producto.lineasProduccion.find(
       (pl: any) => pl.lineaProduccionId === updatedOrder.lineaProduccionId
@@ -82,7 +102,8 @@ export async function POST(
       ...updatedOrder,
       producto,
       estado,
-      lastUpdateTime: now
+      lastUpdateTime: now,
+      activeHistorialId: newHistorialId
     });
   } catch (error) {
     console.error("[ORDER_START_POST]", error);

@@ -15,15 +15,16 @@ datasource db {
 
 // User models
 model User {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  email         String   @unique
-  password      String?
-  image         String?
-  role          Role     @default(PRODUCTION_CHIEF)
-  isMaster      Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                    String                @id @default(auto()) @map("_id") @db.ObjectId
+  name                  String
+  email                 String                @unique
+  password              String?
+  image                 String?
+  role                  Role                  @default(PRODUCTION_CHIEF)
+  isMaster              Boolean               @default(false)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  historialesProduccion ProduccionHistorial[]
 
   @@map("users")
 }
@@ -36,213 +37,216 @@ enum Role {
 
 // Production line models
 model LineaProduccion {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  nombre        String
-  sistemas      Sistema[]
-  producciones  Produccion[]
-  paros         Paro[]
-  productos     ProductoEnLinea[]
-  desviacionesCalidad DesviacionCalidad[]
+  id                    String                @id @default(auto()) @map("_id") @db.ObjectId
+  nombre                String
+  sistemas              Sistema[]
+  producciones          Produccion[]
+  paros                 Paro[]
+  productos             ProductoEnLinea[]
+  desviacionesCalidad   DesviacionCalidad[]
+  historialesProduccion ProduccionHistorial[]
 
   @@map("lineas_produccion")
 }
 
 model Sistema {
-  id                String        @id @default(auto()) @map("_id") @db.ObjectId
-  nombre           String
-  lineaProduccionId String        @db.ObjectId
-  lineaProduccion  LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
-  subsistemas      Subsistema[]
-  paros            Paro[]
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  nombre            String
+  lineaProduccionId String          @db.ObjectId
+  lineaProduccion   LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
+  subsistemas       Subsistema[]
+  paros             Paro[]
 
   @@map("sistemas")
 }
 
 model Subsistema {
-  id            String          @id @default(auto()) @map("_id") @db.ObjectId
-  nombre        String
-  sistemaId     String          @db.ObjectId
-  sistema       Sistema         @relation(fields: [sistemaId], references: [id])
+  id             String          @id @default(auto()) @map("_id") @db.ObjectId
+  nombre         String
+  sistemaId      String          @db.ObjectId
+  sistema        Sistema         @relation(fields: [sistemaId], references: [id])
   subsubsistemas Subsubsistema[]
-  paros         Paro[]
+  paros          Paro[]
 
   @@map("subsistemas")
 }
 
 model Subsubsistema {
-  id            String      @id @default(auto()) @map("_id") @db.ObjectId
-  nombre        String
-  subsistemaId  String      @db.ObjectId
-  subsistema    Subsistema  @relation(fields: [subsistemaId], references: [id])
-  paros         Paro[]
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  nombre       String
+  subsistemaId String     @db.ObjectId
+  subsistema   Subsistema @relation(fields: [subsistemaId], references: [id])
+  paros        Paro[]
 
   @@map("subsubsistemas")
 }
 
 // Product models
 model Caja {
-  id              String      @id @default(auto()) @map("_id") @db.ObjectId
-  numeroUnidades  Int
-  nombre          String?
-  productos       Producto[]
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
+  numeroUnidades Int
+  nombre         String?
+  productos      Producto[]
 
   @@map("cajas")
 }
 
 model MateriaPrima {
-  id             String                @id @default(auto()) @map("_id") @db.ObjectId
-  nombre         String
-  productos      ProductoMateriaPrima[]
-  paros          Paro[]
+  id        String                 @id @default(auto()) @map("_id") @db.ObjectId
+  nombre    String
+  productos ProductoMateriaPrima[]
+  paros     Paro[]
 
   @@map("materias_primas")
 }
 
 model Modelo {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  nombre         String
-  productos      Producto[]
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  nombre    String
+  productos Producto[]
 
   @@map("modelos")
 }
 
 model TipoParo {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  nombre         String
-  paros          Paro[]
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  nombre String
+  paros  Paro[]
 
   @@map("tipos_paros")
 }
 
 model Sabor {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  nombre         String
-  productos      Producto[]
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  nombre    String
+  productos Producto[]
 
   @@map("sabores")
 }
 
 model Tamaño {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  litros         Float
-  nombre         String?
-  productos      Producto[]
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  litros    Float
+  nombre    String?
+  productos Producto[]
 
   @@map("tamaños")
 }
 
 model Producto {
-  id             String                @id @default(auto()) @map("_id") @db.ObjectId
-  nombre         String
-  cajaId         String                @db.ObjectId
-  caja           Caja                  @relation(fields: [cajaId], references: [id])
-  modeloId       String                @db.ObjectId
-  modelo         Modelo                @relation(fields: [modeloId], references: [id])
-  tamañoId       String                @db.ObjectId
-  tamaño         Tamaño                @relation(fields: [tamañoId], references: [id])
-  saborId        String                @db.ObjectId
-  sabor          Sabor                 @relation(fields: [saborId], references: [id])
-  materiasPrimas ProductoMateriaPrima[]
-  producciones   Produccion[]
-  lineasProduccion ProductoEnLinea[]
+  id                    String                 @id @default(auto()) @map("_id") @db.ObjectId
+  nombre                String
+  cajaId                String                 @db.ObjectId
+  caja                  Caja                   @relation(fields: [cajaId], references: [id])
+  modeloId              String                 @db.ObjectId
+  modelo                Modelo                 @relation(fields: [modeloId], references: [id])
+  tamañoId             String                 @db.ObjectId
+  tamaño               Tamaño                @relation(fields: [tamañoId], references: [id])
+  saborId               String                 @db.ObjectId
+  sabor                 Sabor                  @relation(fields: [saborId], references: [id])
+  materiasPrimas        ProductoMateriaPrima[]
+  producciones          Produccion[]
+  lineasProduccion      ProductoEnLinea[]
+  historialesProduccion ProduccionHistorial[]
 
   @@map("productos")
 }
 
 // Production models
 model Produccion {
-  id                String            @id @default(auto()) @map("_id") @db.ObjectId
-  numeroOrden       Int
-  cajasProducidas   Int               @default(0)
-  cajasPlanificadas Int
-  turno             Int
-  fechaProduccion   DateTime
-  lineaProduccionId String            @db.ObjectId
-  lineaProduccion   LineaProduccion   @relation(fields: [lineaProduccionId], references: [id])
-  productoId        String            @db.ObjectId
-  producto          Producto          @relation(fields: [productoId], references: [id])
-  paros             Paro[]
-  produccionPorHora ProduccionPorHora[]
-  finalizaciones    FinalizacionProduccion[]
-  lastUpdateTime    DateTime?         // Last time the production count was updated
-  estado            String?           @default("pendiente") // pendiente, en_progreso, completada
-  tiempoPlan        Float?            // Estimated production time in hours
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  id                    String                   @id @default(auto()) @map("_id") @db.ObjectId
+  numeroOrden           Int
+  cajasProducidas       Int                      @default(0)
+  cajasPlanificadas     Int
+  turno                 Int
+  fechaProduccion       DateTime
+  lineaProduccionId     String                   @db.ObjectId
+  lineaProduccion       LineaProduccion          @relation(fields: [lineaProduccionId], references: [id])
+  productoId            String                   @db.ObjectId
+  producto              Producto                 @relation(fields: [productoId], references: [id])
+  paros                 Paro[]
+  produccionPorHora     ProduccionPorHora[]
+  finalizaciones        FinalizacionProduccion[]
+  historialesProduccion ProduccionHistorial[]
+  lastUpdateTime        DateTime? // Last time the production count was updated
+  estado                String?                  @default("pendiente") // pendiente, en_progreso, completada
+  tiempoPlan            Float? // Estimated production time in hours
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
 
   @@map("producciones")
 }
 
 model ProduccionPorHora {
-  id              String      @id @default(auto()) @map("_id") @db.ObjectId
-  produccionId    String      @db.ObjectId
-  produccion      Produccion  @relation(fields: [produccionId], references: [id])
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  produccionId    String     @db.ObjectId
+  produccion      Produccion @relation(fields: [produccionId], references: [id])
   cajasProducidas Int
-  horaRegistro    DateTime    @default(now()) // The timestamp when this hourly production was recorded
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  horaRegistro    DateTime   @default(now()) // The timestamp when this hourly production was recorded
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   @@map("produccion_por_hora")
 }
 
 model FinalizacionProduccion {
-  id            String      @id @default(auto()) @map("_id") @db.ObjectId
-  produccionId  String      @db.ObjectId
-  produccion    Produccion  @relation(fields: [produccionId], references: [id])
-  tiempoHoras   Float       // Tiempo remanente en horas
-  fechaRegistro DateTime    @default(now())
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  produccionId  String     @db.ObjectId
+  produccion    Produccion @relation(fields: [produccionId], references: [id])
+  tiempoHoras   Float // Tiempo remanente en horas
+  fechaRegistro DateTime   @default(now())
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   @@map("finalizacion_produccion")
 }
 
 model Paro {
-  id                String           @id @default(auto()) @map("_id") @db.ObjectId
-  tiempoMinutos     Int
-  tipoParoId        String           @db.ObjectId
-  tipoParo          TipoParo         @relation(fields: [tipoParoId], references: [id])
-  produccionId      String           @db.ObjectId
-  produccion        Produccion       @relation(fields: [produccionId], references: [id])
-  lineaProduccionId String           @db.ObjectId
-  lineaProduccion   LineaProduccion  @relation(fields: [lineaProduccionId], references: [id])
-  sistemaId         String?          @db.ObjectId
-  sistema           Sistema?         @relation(fields: [sistemaId], references: [id])
-  subsistemaId      String?          @db.ObjectId
-  subsistema        Subsistema?      @relation(fields: [subsistemaId], references: [id])
-  subsubsistemaId   String?          @db.ObjectId
-  subsubsistema     Subsubsistema?   @relation(fields: [subsubsistemaId], references: [id])
-  desviacionCalidadId String?        @db.ObjectId
-  desviacionCalidad DesviacionCalidad? @relation(fields: [desviacionCalidadId], references: [id])
-  materiaPrimaId    String?          @db.ObjectId
-  materiaPrima      MateriaPrima?    @relation(fields: [materiaPrimaId], references: [id])
-  descripcion       String?
-  fechaInicio       DateTime         @default(now())
-  fechaFin          DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id                  String             @id @default(auto()) @map("_id") @db.ObjectId
+  tiempoMinutos       Int
+  tipoParoId          String             @db.ObjectId
+  tipoParo            TipoParo           @relation(fields: [tipoParoId], references: [id])
+  produccionId        String             @db.ObjectId
+  produccion          Produccion         @relation(fields: [produccionId], references: [id])
+  lineaProduccionId   String             @db.ObjectId
+  lineaProduccion     LineaProduccion    @relation(fields: [lineaProduccionId], references: [id])
+  sistemaId           String?            @db.ObjectId
+  sistema             Sistema?           @relation(fields: [sistemaId], references: [id])
+  subsistemaId        String?            @db.ObjectId
+  subsistema          Subsistema?        @relation(fields: [subsistemaId], references: [id])
+  subsubsistemaId     String?            @db.ObjectId
+  subsubsistema       Subsubsistema?     @relation(fields: [subsubsistemaId], references: [id])
+  desviacionCalidadId String?            @db.ObjectId
+  desviacionCalidad   DesviacionCalidad? @relation(fields: [desviacionCalidadId], references: [id])
+  materiaPrimaId      String?            @db.ObjectId
+  materiaPrima        MateriaPrima?      @relation(fields: [materiaPrimaId], references: [id])
+  descripcion         String?
+  fechaInicio         DateTime           @default(now())
+  fechaFin            DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   @@map("paros")
 }
 
 // Many-to-many relationship models
 model ProductoMateriaPrima {
-  id              String       @id @default(auto()) @map("_id") @db.ObjectId
-  productoId      String       @db.ObjectId
-  producto        Producto     @relation(fields: [productoId], references: [id])
-  materiaPrimaId  String       @db.ObjectId
-  materiaPrima    MateriaPrima @relation(fields: [materiaPrimaId], references: [id])
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  productoId     String       @db.ObjectId
+  producto       Producto     @relation(fields: [productoId], references: [id])
+  materiaPrimaId String       @db.ObjectId
+  materiaPrima   MateriaPrima @relation(fields: [materiaPrimaId], references: [id])
 
   @@map("productos_materias_primas")
 }
 
 model ProductoEnLinea {
-  id                String          @id @default(auto()) @map("_id") @db.ObjectId
-  productoId        String          @db.ObjectId
-  producto          Producto        @relation(fields: [productoId], references: [id])
-  lineaProduccionId String          @db.ObjectId
-  lineaProduccion   LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
-  velocidadProduccion Float?        @map("velocidadProduccion")
+  id                  String          @id @default(auto()) @map("_id") @db.ObjectId
+  productoId          String          @db.ObjectId
+  producto            Producto        @relation(fields: [productoId], references: [id])
+  lineaProduccionId   String          @db.ObjectId
+  lineaProduccion     LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
+  velocidadProduccion Float?          @map("velocidadProduccion")
 
   @@map("productos_en_lineas")
 }
@@ -261,8 +265,37 @@ model DesviacionCalidad {
 }
 
 model Suggestion {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  user      String
-  message   String
-  date      DateTime
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  user    String
+  message String
+  date    DateTime
+}
+
+// New model for production history
+model ProduccionHistorial {
+  id                         String          @id @default(auto()) @map("_id") @db.ObjectId
+  produccionId               String          @db.ObjectId
+  produccion                 Produccion      @relation(fields: [produccionId], references: [id])
+  userId                     String          @db.ObjectId // Jefe de producción
+  user                       User            @relation(fields: [userId], references: [id])
+  lineaProduccionId          String          @db.ObjectId
+  lineaProduccion            LineaProduccion @relation(fields: [lineaProduccionId], references: [id])
+  productoId                 String          @db.ObjectId
+  producto                   Producto        @relation(fields: [productoId], references: [id])
+  cajasProducidas            Int             @default(0) // Cajas producidas en este periodo
+  cantidadParosTotal         Int             @default(0) // Cantidad total de paros en este periodo
+  cantidadParosMantenimiento Int             @default(0) // Paros de mantenimiento
+  cantidadParosCalidad       Int             @default(0) // Paros de calidad
+  cantidadParosOperacion     Int             @default(0) // Paros de operación
+  tiempoParosTotal           Int             @default(0) // Tiempo total de paros en minutos
+  tiempoParosMantenimiento   Int             @default(0) // Tiempo de paros de mantenimiento
+  tiempoParosCalidad         Int             @default(0) // Tiempo de paros de calidad
+  tiempoParosOperacion       Int             @default(0) // Tiempo de paros de operación
+  fechaInicio                DateTime        @default(now()) // Cuando se abrió/reabrió la orden
+  fechaFin                   DateTime? // Cuando se cerró la orden (null si está abierta)
+  activo                     Boolean         @default(true) // Si este historial está activo (false cuando se cierra)
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+
+  @@map("produccion_historial")
 }
