@@ -200,6 +200,9 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
   const [hourlyParos, setHourlyParos] = useState<Paro[]>([]);
   const [finishParos, setFinishParos] = useState<Paro[]>([]);
 
+  // Agregar el estado isFinalizingProduction
+  const [isFinalizingProduction, setIsFinalizingProduction] = useState<boolean>(false);
+
   // Add function to fetch quality deviations
   const fetchDesviacionesCalidad = async (lineaId: string) => {
     try {
@@ -618,7 +621,6 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
 
   // Function to start the paros registration process
   const handleStartParosRegistration = () => {
-    resetDowntimeStates();
     if (!hourlyProduction || isNaN(parseInt(hourlyProduction))) {
       toast.error("Por favor ingrese la cantidad de cajas producidas en la última hora");
       return;
@@ -742,7 +744,6 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
   };
 
   const handleFinishProduction = () => {
-    resetDowntimeStates();
     if (!finalHourlyProduction || isNaN(parseInt(finalHourlyProduction))) {
       toast.error("Por favor ingrese la cantidad de cajas producidas en la última hora");
       return;
@@ -751,6 +752,9 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
     // Calculate remaining downtime minutes
     const hourlyProductionValue = parseInt(finalHourlyProduction);
     const calculatedStopMinutes = calculateStopMinutes(hourlyProductionValue, true);
+    
+    // Almacenar explícitamente el valor para que esté disponible en el resumen
+    setFinalHourlyProduction(finalHourlyProduction); 
     setRemainingDowntimeMinutes(calculatedStopMinutes);
 
     // Close hourly update dialog 
@@ -759,6 +763,11 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
     
     // Start with Mantenimiento
     setCurrentParoType("Mantenimiento");
+    
+    // Reset all paros lists
+    setParosMantenimiento([]);
+    setParosCalidad([]);
+    setParosOperacion([]);
     
     // Show the add paro dialog if there are stop minutes
     if (calculatedStopMinutes > 0) {
@@ -797,43 +806,28 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
       // Usar paros específicos para finalización
       const allParos = [...finishParos];
       
-      // Determine if this is a finalization or just an hourly update
-      const isFinalizingProduction = showFinishDialog;
-      
-      // Para finalización, usamos el valor de finalHourlyProduction
-      // Para actualizaciones por hora, usamos hourlyProduction
-      const produccionFinal = isFinalizingProduction ? 
-        finalHourlyProduction || hourlyProduction : 
-        hourlyProduction;
-      
-      // Ensure production value is valid
-      if (!produccionFinal || isNaN(parseInt(produccionFinal))) {
+      // Comprobar si tenemos el valor de producción final
+      // Usando el valor almacenado en finalHourlyProduction
+      if (!finalHourlyProduction || isNaN(parseInt(finalHourlyProduction))) {
+        console.log("Error: No hay un valor válido de cajas producidas", { finalHourlyProduction });
         toast.error("Por favor ingrese la cantidad de cajas producidas en la última hora");
         setIsUpdating(false);
         return;
       }
-
-      // Validate paros data
-      for (const paro of allParos) {
-        // Ensure all paros have valid tiempoMinutos
-        if (!paro.tiempoMinutos || paro.tiempoMinutos <= 0) {
-          toast.error("Todos los paros deben tener un tiempo válido");
-          setIsUpdating(false);
-          return;
-        }
+      
+      // Parse una sola vez para reutilizar
+      const parsedProduccionFinal = parseInt(finalHourlyProduction);
+      
+      // Validar paros (sólo si hay tiempo de paro asignado)
+      if (remainingDowntimeMinutes > 0) {
+        // Calculate the total assigned time
+        const totalAssignedTime = [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
+          .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
+          .reduce((sum, paro) => sum + paro.tiempoMinutos, 0);
         
-        // For Mantenimiento and Operacion, ensure they have a sistemaId
-        if ((paro.tipoParoNombre === "Mantenimiento" || paro.tipoParoNombre === "Operación") && 
-            (!paro.sistemaId || paro.sistemaId === "")) {
-          toast.error(`Los paros de ${paro.tipoParoNombre} deben tener un sistema seleccionado`);
-          setIsUpdating(false);
-          return;
-        }
-        
-        // For Calidad, ensure they have a desviacionCalidadId
-        if (paro.tipoParoNombre === "Calidad" && 
-            (!paro.desviacionCalidadId || paro.desviacionCalidadId === "placeholder")) {
-          toast.error("Los paros de Calidad deben tener una desviación de calidad seleccionada");
+        // Check if all downtime has been assigned
+        if (totalAssignedTime < remainingDowntimeMinutes) {
+          toast.error(`Debe asignar todo el tiempo de paro (${remainingDowntimeMinutes} minutos) antes de continuar`);
           setIsUpdating(false);
           return;
         }
@@ -850,9 +844,6 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
           tiempoTranscurridoHoras
         });
       }
-      
-      // Use the parsed production value for consistency
-      const parsedProduccionFinal = parseInt(produccionFinal);
       
       console.log("Sending production data:", {
         cajasProducidas: totalCajasProducidas + parsedProduccionFinal,
@@ -970,13 +961,13 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
   const finishParoAssignment = () => {
     // Combine all paros
     const allParos = [...parosMantenimiento, ...parosCalidad, ...parosOperacion];
-    setParos(allParos);
+    setFinishParos(allParos);
     
     // Close the dialog
     setShowAddParoDialog(false);
     
-    // Complete the finish production process
-    completeFinishProduction();
+    // Show the summary dialog
+    setShowSummaryDialog(true);
   };
 
   const handleViewStops = () => {
@@ -1400,8 +1391,8 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
 
   // Reset hourly production when opening the dialog
   const handleOpenHourlyUpdate = () => {
-    setFinalHourlyProduction("");
-    setHourlyParos([]); // Limpiar paros para actualización por hora
+    setHourlyProduction("");
+    setIsFinalizingProduction(false); // Marcar explícitamente que es solo actualización
     setShowHourlyUpdate(true);
   };
 
@@ -1686,6 +1677,7 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
 
   const handleOpenFinishDialog = () => {
     setFinishParos([]); // Limpiar paros para finalización de producción
+    setIsFinalizingProduction(true); // Marcar explícitamente que es finalización
     setShowFinishDialog(true);
   };
 
@@ -2983,6 +2975,7 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
             </div>
           </div>
 
+          {/* Dialog Footer con botones */}
           <DialogFooter className="flex justify-between pt-4 border-t mt-2">
             <Button 
               variant="outline" 
@@ -2995,13 +2988,7 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
             </Button>
             <Button 
               onClick={completeFinishProduction}
-              disabled={
-                isUpdating || 
-                (remainingDowntimeMinutes - 
-                [...parosMantenimiento, ...parosCalidad, ...parosOperacion]
-                  .filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-                  .reduce((sum, paro) => sum + paro.tiempoMinutos, 0) > 0)
-              }
+              disabled={isUpdating}
               className="bg-primary hover:bg-primary/90"
             >
               {isUpdating ? (

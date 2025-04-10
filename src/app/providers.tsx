@@ -13,7 +13,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         disableTransitionOnChange 
         storageKey="tehuacanbrillante-theme"
       >
-        {children}
+        <div className="min-h-screen bg-background text-text-primary">
+          {children}
+        </div>
       </ThemeProvider>
     </SessionProvider>
   );

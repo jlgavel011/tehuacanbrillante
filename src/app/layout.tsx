@@ -27,7 +27,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
       </head>
-      <body className="antialiased">
+      <body className="antialiased min-h-screen bg-background text-text-primary">
         <Providers>
           {children}
           <Toaster position="top-right" />

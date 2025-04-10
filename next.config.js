@@ -4,7 +4,6 @@ const nextConfig = {
   experimental: {
     // Disable strict mode for development
     strictNextHead: false,
-    serverActions: true,
   },
   
   // Add compiler options
