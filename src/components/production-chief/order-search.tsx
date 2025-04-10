@@ -94,7 +94,11 @@ export function OrderSearch() {
 
   function handleManageProduction() {
     if (order) {
-      router.push(`/production-chief?orderId=${order.id}`);
+      // Usar window.location para forzar recarga completa de la página
+      window.location.href = `/production-chief?orderId=${order.id}&t=${Date.now()}`;
+      
+      // Mantener router.push como fallback
+      // router.push(`/production-chief?orderId=${order.id}`);
     }
   }
 

@@ -18,6 +18,7 @@ import { Textarea } from "../ui/textarea";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { OrderSearch } from "./order-search";
 
 type ProductionOrder = {
   id: string;
@@ -134,7 +135,7 @@ type MateriaPrima = {
   nombre: string;
 };
 
-export function ProductionStatus() {
+export function ProductionStatus({ onProductionStateChange }: { onProductionStateChange?: (isActive: boolean) => void }) {
   const router = useRouter();
   const [orderId, setOrderId] = useState<string | null>(null);
   const [order, setOrder] = useState<ProductionOrder | null>(null);
@@ -194,6 +195,10 @@ export function ProductionStatus() {
   // Add state for quality deviations
   const [desviacionesCalidad, setDesviacionesCalidad] = useState<DesviacionCalidad[]>([]);
   const [materiasPrimas, setMateriasPrimas] = useState<MateriaPrima[]>([]);
+
+  // Estados independientes para los modales
+  const [hourlyParos, setHourlyParos] = useState<Paro[]>([]);
+  const [finishParos, setFinishParos] = useState<Paro[]>([]);
 
   // Add function to fetch quality deviations
   const fetchDesviacionesCalidad = async (lineaId: string) => {
@@ -326,31 +331,25 @@ export function ProductionStatus() {
     }
   }, [hourlyProduction, order]);
 
+  // Determine order ID from URL on component mount
   useEffect(() => {
-    // Get orderId from URL query parameters
     const searchParams = new URLSearchParams(window.location.search);
-    const orderIdFromUrl = searchParams.get('orderId');
-    const isReopened = searchParams.get('reopened') === 'true';
+    const id = searchParams.get("orderId");
+    setOrderId(id);
     
-    if (orderIdFromUrl) {
-      setOrderId(orderIdFromUrl);
-      
-      // If this is a reopened order, make sure to clear any reopened flag in localStorage
-      if (isReopened) {
-        console.log(`Detected reopened order: ${orderIdFromUrl}`);
-        localStorage.removeItem(`reopened_${orderIdFromUrl}`);
-        
-        // Make sure we're in "first load" state for reopened orders
-        setIsFirstLoad(true);
-      }
+    // If no ID is found, set loading to false
+    if (!id) {
+      setIsLoading(false);
     }
   }, []);
 
+  // Fetch order data when orderId changes
   useEffect(() => {
     if (orderId) {
       fetchOrder();
       fetchStopTypes();
-      // Sistemas, subsistemas, and subsubsistemas will be fetched after the order is loaded
+      fetchSubsistemas();
+      fetchSubsubsistemas();
     }
   }, [orderId]);
 
@@ -358,8 +357,6 @@ export function ProductionStatus() {
   useEffect(() => {
     if (order && order.lineaProduccion && order.lineaProduccion.id) {
       fetchSistemas();
-      fetchSubsistemas();
-      fetchSubsubsistemas();
     }
   }, [order]);
 
@@ -621,6 +618,7 @@ export function ProductionStatus() {
 
   // Function to start the paros registration process
   const handleStartParosRegistration = () => {
+    resetDowntimeStates();
     if (!hourlyProduction || isNaN(parseInt(hourlyProduction))) {
       toast.error("Por favor ingrese la cantidad de cajas producidas en la última hora");
       return;
@@ -638,6 +636,11 @@ export function ProductionStatus() {
     setShowHourlyUpdate(false);
     
     if (calculatedStopMinutes > 0) {
+      // Asegurarse de que los sistemas estén cargados
+      if (sistemas.length === 0 && order?.lineaProduccion?.id) {
+        fetchSistemas();
+      }
+      
       // Start with Mantenimiento paros
       setCurrentParoType("Mantenimiento");
       
@@ -650,12 +653,12 @@ export function ProductionStatus() {
       const mantenimientoTipo = stopTypes.find(tipo => tipo.nombre === "Mantenimiento");
       if (mantenimientoTipo) {
         setCurrentParo({
-          tiempoMinutos: 0,
+          tiempoMinutos: 0,  // Iniciar con 0 para no sugerir tiempo
           tipoParoId: mantenimientoTipo.id,
           tipoParoNombre: mantenimientoTipo.nombre,
-          sistemaId: "",  // Empty string instead of placeholder
-          subsistemaId: undefined,  // undefined instead of placeholder
-          subsubsistemaId: undefined,  // undefined instead of placeholder
+          sistemaId: "",
+          subsistemaId: undefined,
+          subsubsistemaId: undefined,
           descripcion: ""
         });
         setShowAddParoDialog(true);
@@ -677,13 +680,17 @@ export function ProductionStatus() {
       // Calculate total cajas produced
       const newCajasProducidas = totalCajasProducidas + hourlyProductionValue;
       
+      // Crear la nueva fecha de actualización antes de la solicitud
+      const now = new Date();
+      
       const response = await fetch(`/api/production-orders/${order.id}/update`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          cajasProducidas: newCajasProducidas
+          cajasProducidas: newCajasProducidas,
+          lastUpdateTime: now.toISOString() // Enviar la hora actual al servidor
         }),
       });
       
@@ -702,8 +709,8 @@ export function ProductionStatus() {
       // Show success message
       toast.success("Producción actualizada correctamente");
       
-      // Update the lastUpdateTime
-      const now = new Date();
+      // Actualizar explícitamente la hora de última actualización
+      console.log("Actualizando lastUpdateTime a:", now.toISOString());
       setLastUpdateTime(now);
       storeLastUpdateTime(order.id, now);
       
@@ -712,10 +719,19 @@ export function ProductionStatus() {
       nextUpdate.setHours(nextUpdate.getHours() + 1);
       setNextUpdateTime(nextUpdate);
       
-      // Reset countdown warning
+      // Reiniciar explícitamente el contador y las advertencias
+      setCountdownMinutes(60);
+      setCountdownSeconds(0);
       setShowCountdownWarning(false);
       
-      // Do not close the dialog here, let the user continue with paros registration
+      // Recalcular inmediatamente el tiempo transcurrido
+      setTimeElapsed(0);
+      
+      // Recargar la orden para obtener la información actualizada del servidor
+      await fetchOrder();
+
+      // Cerrar el diálogo
+      setShowHourlyUpdate(false);
       
     } catch (error) {
       console.error("Error updating production:", error);
@@ -726,6 +742,7 @@ export function ProductionStatus() {
   };
 
   const handleFinishProduction = () => {
+    resetDowntimeStates();
     if (!finalHourlyProduction || isNaN(parseInt(finalHourlyProduction))) {
       toast.error("Por favor ingrese la cantidad de cajas producidas en la última hora");
       return;
@@ -755,12 +772,12 @@ export function ProductionStatus() {
       
       // Set the current paro with the mantenimiento type ID already selected
       setCurrentParo({
-        tiempoMinutos: 0,
+        tiempoMinutos: 0,  // Iniciar con 0 para no sugerir tiempo
         tipoParoId: mantenimientoTipo.id,
         tipoParoNombre: mantenimientoTipo.nombre,
-        sistemaId: "",  // Empty string instead of placeholder
-        subsistemaId: undefined,  // undefined instead of placeholder
-        subsubsistemaId: undefined,  // undefined instead of placeholder
+        sistemaId: "",
+        subsistemaId: undefined,
+        subsubsistemaId: undefined,
         descripcion: "",
       });
       
@@ -777,11 +794,50 @@ export function ProductionStatus() {
     try {
       if (!order) return;
 
-      // Combine all paros
-      const allParos = [...parosMantenimiento, ...parosCalidad, ...parosOperacion];
+      // Usar paros específicos para finalización
+      const allParos = [...finishParos];
       
       // Determine if this is a finalization or just an hourly update
-      const isFinalizingProduction = !showHourlyUpdate;
+      const isFinalizingProduction = showFinishDialog;
+      
+      // Para finalización, usamos el valor de finalHourlyProduction
+      // Para actualizaciones por hora, usamos hourlyProduction
+      const produccionFinal = isFinalizingProduction ? 
+        finalHourlyProduction || hourlyProduction : 
+        hourlyProduction;
+      
+      // Ensure production value is valid
+      if (!produccionFinal || isNaN(parseInt(produccionFinal))) {
+        toast.error("Por favor ingrese la cantidad de cajas producidas en la última hora");
+        setIsUpdating(false);
+        return;
+      }
+
+      // Validate paros data
+      for (const paro of allParos) {
+        // Ensure all paros have valid tiempoMinutos
+        if (!paro.tiempoMinutos || paro.tiempoMinutos <= 0) {
+          toast.error("Todos los paros deben tener un tiempo válido");
+          setIsUpdating(false);
+          return;
+        }
+        
+        // For Mantenimiento and Operacion, ensure they have a sistemaId
+        if ((paro.tipoParoNombre === "Mantenimiento" || paro.tipoParoNombre === "Operación") && 
+            (!paro.sistemaId || paro.sistemaId === "")) {
+          toast.error(`Los paros de ${paro.tipoParoNombre} deben tener un sistema seleccionado`);
+          setIsUpdating(false);
+          return;
+        }
+        
+        // For Calidad, ensure they have a desviacionCalidadId
+        if (paro.tipoParoNombre === "Calidad" && 
+            (!paro.desviacionCalidadId || paro.desviacionCalidadId === "placeholder")) {
+          toast.error("Los paros de Calidad deben tener una desviación de calidad seleccionada");
+          setIsUpdating(false);
+          return;
+        }
+      }
       
       // Calcular el tiempo transcurrido en horas desde la última actualización
       let tiempoTranscurridoHoras = 0;
@@ -795,8 +851,11 @@ export function ProductionStatus() {
         });
       }
       
+      // Use the parsed production value for consistency
+      const parsedProduccionFinal = parseInt(produccionFinal);
+      
       console.log("Sending production data:", {
-        cajasProducidas: totalCajasProducidas + parseInt(finalHourlyProduction),
+        cajasProducidas: totalCajasProducidas + parsedProduccionFinal,
         paros: allParos,
         isFinalizingProduction,
         tiempoTranscurridoHoras
@@ -813,27 +872,49 @@ export function ProductionStatus() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          cajasProducidas: totalCajasProducidas + parseInt(finalHourlyProduction),
-          paros: allParos,
+          cajasProducidas: totalCajasProducidas + parsedProduccionFinal,
+          paros: allParos.map(paro => ({
+            ...paro,
+            // Ensure IDs are valid before sending
+            sistemaId: paro.sistemaId && paro.sistemaId !== "" ? paro.sistemaId : undefined,
+            subsistemaId: paro.subsistemaId && paro.subsistemaId !== "placeholder" ? paro.subsistemaId : undefined,
+            subsubsistemaId: paro.subsubsistemaId && paro.subsubsistemaId !== "placeholder" ? paro.subsubsistemaId : undefined,
+            desviacionCalidadId: paro.desviacionCalidadId && paro.desviacionCalidadId !== "placeholder" ? paro.desviacionCalidadId : undefined,
+            materiaPrimaId: paro.materiaPrimaId && paro.materiaPrimaId !== "placeholder" ? paro.materiaPrimaId : undefined
+          })),
           isFinalizingProduction,
           tiempoTranscurridoHoras
         }),
       });
         
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.error("API error response:", errorData);
-        throw new Error(errorData?.message || "Error al procesar la producción");
+        const errorText = await response.text();
+        let errorMessage = "Error al procesar la producción";
+        
+        try {
+          // Try to parse as JSON
+          const errorData = JSON.parse(errorText);
+          console.error("API error response:", errorData);
+          errorMessage = errorData?.message || errorMessage;
+        } catch (e) {
+          // If not JSON, use the raw text
+          console.error("API error response (raw):", errorText);
+        }
+        
+        throw new Error(errorMessage);
       }
       
-      // Reset all paros lists
-      setParosMantenimiento([]);
-      setParosCalidad([]);
-      setParosOperacion([]);
+      const data = await response.json();
       
-      // Reset hourly production
-      setHourlyProduction("");
-      setFinalHourlyProduction("");
+      // Actualizar explícitamente la hora de última actualización
+      const now = new Date();
+      setLastUpdateTime(now);
+      storeLastUpdateTime(order.id, now);
+      
+      // Reiniciar el contador
+      setCountdownMinutes(60);
+      setCountdownSeconds(0);
+      setShowCountdownWarning(false);
       
       // Show appropriate success message
       toast.success(isFinalizingProduction ? 
@@ -842,28 +923,37 @@ export function ProductionStatus() {
       );
       
       if (isFinalizingProduction) {
-        // Only redirect if we're actually finishing production
-        setTimeout(() => {
-          router.push('/production-chief?tab=search');
-        }, 1500);
+        // Marcar la orden como completada
+        try {
+          const completeResponse = await fetch(`/api/production-orders/${order.id}/complete`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            }
+          });
+          
+          if (!completeResponse.ok) {
+            console.error("Error marking order as complete:", await completeResponse.text());
+            // Continue anyway
+          }
+
+          // Redirigir al usuario al buscador con una recarga completa
+          setTimeout(() => {
+            window.location.href = '/production-chief?tab=search';
+          }, 1500);
+        } catch (error) {
+          console.error("Error marking order as complete:", error);
+          // Continue anyway, since the main update was successful
+        }
       } else {
-        // If it's just an hourly update, update the lastUpdateTime and reset the countdown
-        const now = new Date();
-        setLastUpdateTime(now);
-        storeLastUpdateTime(order.id, now);
-        
-        // Set next update time to 1 hour from now
-        const nextUpdate = new Date(now);
-        nextUpdate.setHours(nextUpdate.getHours() + 1);
-        setNextUpdateTime(nextUpdate);
-        
-        // Reset countdown warning
-        setShowCountdownWarning(false);
-        
-        // Refresh the order data
-        await fetchOrder();
+        // Si es una actualización por hora, mantener la orden en proceso
+        // y no redirigir al usuario
+        console.log("Actualización por hora completada, manteniendo la orden en proceso.");
       }
       
+      // Clear local storage of downtime data after submission
+      localStorage.removeItem(`paros_${order.id}`);
+
       // Close dialogs
       setShowAddParoDialog(false);
       setShowSummaryDialog(false);
@@ -1109,91 +1199,66 @@ export function ProductionStatus() {
 
   // Function to move to the next paro type
   const handleNextParoType = () => {
-    // Close the current dialog
-    setShowAddParoDialog(false);
-    
-    // Calculate the total time assigned so far
-    const totalAssignedTime = [
-      ...parosMantenimiento, 
-      ...parosCalidad, 
-      ...parosOperacion
-    ].filter(paro => paro && typeof paro.tiempoMinutos === 'number')
-     .reduce((sum, paro) => sum + paro.tiempoMinutos, 0);
-    
-    // Calculate remaining time
-    const remainingTime = remainingDowntimeMinutes - totalAssignedTime;
-    
-    // Move to the next type based on current type
+    // Verificar que se completó un paro de este tipo antes de pasar al siguiente
     if (currentParoType === "Mantenimiento") {
+      // Cambiar a paro de Calidad
       setCurrentParoType("Calidad");
       
-      // Initialize new paro for Calidad if there's remaining time
-      if (remainingTime > 0) {
-        const calidadTipo = stopTypes.find(tipo => tipo.nombre === "Calidad");
-        if (calidadTipo) {
-          setCurrentParo({
-            tiempoMinutos: Math.min(remainingTime, 15),
-            tipoParoId: calidadTipo.id,
-            tipoParoNombre: calidadTipo.nombre,
-            sistemaId: "",  // Empty string instead of placeholder
-            subsistemaId: undefined,  // undefined instead of placeholder
-            subsubsistemaId: undefined,  // undefined instead of placeholder
-            descripcion: ""
-          });
-          setShowAddParoDialog(true);
-        } else {
-          // Move to next type if no Calidad type found
-          setCurrentParoType("Operación");
-          const operacionTipo = stopTypes.find(tipo => tipo.nombre === "Operación");
-          if (operacionTipo) {
-            setCurrentParo({
-              tiempoMinutos: Math.min(remainingTime, 15),
-              tipoParoId: operacionTipo.id,
-              tipoParoNombre: operacionTipo.nombre,
-              sistemaId: "",  // Empty string instead of placeholder
-              subsistemaId: undefined,  // undefined instead of null
-              subsubsistemaId: undefined,  // undefined instead of null
-              descripcion: ""
-            });
-            setShowAddParoDialog(true);
-          } else {
-            // If no time remaining, show summary
-            setShowSummaryDialog(true);
-          }
-        }
-      } else {
-        // If no time remaining, show summary
-        setShowSummaryDialog(true);
+      // Buscar tipo de paro Calidad
+      const calidadTipo = stopTypes.find(tipo => tipo.nombre === "Calidad");
+      
+      if (!calidadTipo) {
+        toast.error("Error: No se encontró el tipo de paro Calidad");
+        return;
       }
+      
+      // Preparar objeto de paro de Calidad con tiempo en 0
+      setCurrentParo({
+        tiempoMinutos: 0,  // Iniciar con 0 para no sugerir tiempo
+        tipoParoId: calidadTipo.id,
+        tipoParoNombre: calidadTipo.nombre,
+        desviacionCalidadId: "",
+        materiaPrimaId: undefined,
+        sistemaId: undefined,
+        subsistemaId: undefined,
+        subsubsistemaId: undefined,
+        descripcion: ""
+      });
+      
     } else if (currentParoType === "Calidad") {
+      // Cambiar a paro de Operación
       setCurrentParoType("Operación");
       
-      // Initialize new paro for Operación if there's remaining time
-      if (remainingTime > 0) {
-        const operacionTipo = stopTypes.find(tipo => tipo.nombre === "Operación");
-        if (operacionTipo) {
-          setCurrentParo({
-            tiempoMinutos: Math.min(remainingTime, 15),
-            tipoParoId: operacionTipo.id,
-            tipoParoNombre: operacionTipo.nombre,
-            sistemaId: "",  // Empty string instead of placeholder
-            subsistemaId: undefined,  // undefined instead of null
-            subsubsistemaId: undefined,  // undefined instead of null
-            descripcion: ""
-          });
-          setShowAddParoDialog(true);
-        } else {
-          // If no Operación type found, show summary
-          setShowSummaryDialog(true);
-        }
-      } else {
-        // If no time remaining, show summary
-        setShowSummaryDialog(true);
+      // Buscar tipo de paro Operación
+      const operacionTipo = stopTypes.find(tipo => tipo.nombre === "Operación");
+      
+      if (!operacionTipo) {
+        toast.error("Error: No se encontró el tipo de paro Operación");
+        return;
       }
-    } else {
-      // If we're already on Operación, finish the process
-      finishParoAssignment();
+      
+      // Calcular minutos restantes por asignar
+      const totalMinutosAsignados = [...parosMantenimiento, ...parosCalidad].reduce(
+        (sum, paro) => sum + (paro.tiempoMinutos || 0), 
+        0
+      );
+      
+      const minutosRestantes = remainingDowntimeMinutes - totalMinutosAsignados;
+      
+      // Preparar objeto de paro de Operación con el tiempo restante
+      setCurrentParo({
+        tiempoMinutos: Math.max(0, minutosRestantes),  // Sugerir el tiempo restante para operación
+        tipoParoId: operacionTipo.id,
+        tipoParoNombre: operacionTipo.nombre,
+        sistemaId: "",
+        subsistemaId: undefined,
+        subsubsistemaId: undefined,
+        descripcion: ""
+      });
     }
+    
+    // Resetear el índice de edición cuando cambiamos de tipo
+    setEditingParoIndex(null);
   };
 
   // Function to edit a paro
@@ -1336,8 +1401,8 @@ export function ProductionStatus() {
   // Reset hourly production when opening the dialog
   const handleOpenHourlyUpdate = () => {
     setFinalHourlyProduction("");
+    setHourlyParos([]); // Limpiar paros para actualización por hora
     setShowHourlyUpdate(true);
-    setShowFinishDialog(true);
   };
 
   // Function to store lastUpdateTime in localStorage
@@ -1375,21 +1440,37 @@ export function ProductionStatus() {
 
   // Update timeElapsed every minute
   useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
     if (lastUpdateTime && order?.estado === "en_progreso") {
-      const interval = setInterval(() => {
-        const now = new Date();
-        const diffMinutes = Math.floor((now.getTime() - lastUpdateTime.getTime()) / (1000 * 60));
-        setTimeElapsed(diffMinutes);
-      }, 60000); // Update every minute
-      
-      // Initial calculation
+      // Calculo inicial inmediato
       const now = new Date();
       const diffMinutes = Math.floor((now.getTime() - lastUpdateTime.getTime()) / (1000 * 60));
       setTimeElapsed(diffMinutes);
       
-      return () => clearInterval(interval);
+      // Log para debug
+      console.log(`[Timer Effect] lastUpdateTime: ${lastUpdateTime.toISOString()}, diffMinutes: ${diffMinutes}`);
+      
+      // Actualizar cada minuto
+      interval = setInterval(() => {
+        const currentTime = new Date();
+        const currentDiffMinutes = Math.floor((currentTime.getTime() - lastUpdateTime.getTime()) / (1000 * 60));
+        
+        console.log(`[Timer Update] currentTime: ${currentTime.toISOString()}, lastUpdateTime: ${lastUpdateTime.toISOString()}, diff: ${currentDiffMinutes}min`);
+        
+        setTimeElapsed(currentDiffMinutes);
+      }, 60000); // Update every minute
+    } else {
+      // Si no hay lastUpdateTime o la orden no está en progreso, resetear el tiempo transcurrido
+      setTimeElapsed(0);
     }
-  }, [lastUpdateTime, order]);
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [lastUpdateTime, order?.estado]);
 
   // Add function to handle reopening production
   const handleReopenProduction = async () => {
@@ -1596,6 +1677,29 @@ export function ProductionStatus() {
     }
   };
 
+  // Update parent component when production state changes
+  useEffect(() => {
+    if (onProductionStateChange && order) {
+      onProductionStateChange(order.estado === "En Progreso");
+    }
+  }, [order?.estado, onProductionStateChange]);
+
+  const handleOpenFinishDialog = () => {
+    setFinishParos([]); // Limpiar paros para finalización de producción
+    setShowFinishDialog(true);
+  };
+
+  // Reset downtime-related states when starting a new operation
+  const resetDowntimeStates = () => {
+    setParosMantenimiento([]);
+    setParosCalidad([]);
+    setParosOperacion([]);
+    setCurrentParo(null);
+    setEditingParoIndex(null);
+    setRemainingDowntimeMinutes(0);
+    setFinalHourlyProduction("");
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col justify-center items-center h-64 space-y-4">
@@ -1626,6 +1730,22 @@ export function ProductionStatus() {
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>{error}</AlertDescription>
       </Alert>
+    );
+  }
+
+  if (!orderId) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Buscar Orden de Producción</CardTitle>
+          <CardDescription>
+            Ingrese el número de orden para ver los detalles de producción
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OrderSearch />
+        </CardContent>
+      </Card>
     );
   }
 
@@ -1803,7 +1923,7 @@ export function ProductionStatus() {
                 </Button>
                 
                 <Button 
-                  onClick={() => setShowFinishDialog(true)} 
+                  onClick={handleOpenFinishDialog} 
                   variant="outline"
                   className="border-success text-success hover:bg-success-light hover:border-success-dark transition-all duration-300 transform hover:-translate-y-1 hover:shadow-md"
                 >
@@ -1849,6 +1969,24 @@ export function ProductionStatus() {
             <DialogTitle className="text-xl font-bold text-primary">Actualización por Hora</DialogTitle>
             <DialogDescription>
               Ingrese la cantidad de cajas producidas en la última hora.
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 flex items-center gap-1"
+                onClick={() => {
+                  // Cerrar el diálogo actual
+                  setShowHourlyUpdate(false);
+                  
+                  // Restablecer el valor de producción por hora
+                  setHourlyProduction("");
+                  
+                  // Abrir nuevamente el diálogo de actualización por hora
+                  setTimeout(() => setShowHourlyUpdate(true), 100);
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Corregir cajas producidas
+              </Button>
             </DialogDescription>
           </DialogHeader>
           
@@ -1967,11 +2105,30 @@ export function ProductionStatus() {
               {editingParoIndex !== null ? (
                 "Modifique la información del paro seleccionado."
               ) : (
-                <>
-                  {currentParoType === "Mantenimiento" && "Registre los paros por mantenimiento indicando sistema, subsistema y subsubsistema."}
-                  {currentParoType === "Calidad" && "Registre los paros por calidad indicando el sistema afectado."}
-                  {currentParoType === "Operación" && "Registre los paros por operación indicando el sistema afectado."}
-                </>
+                <span className="flex flex-col space-y-2">
+                  <span>
+                    {currentParoType === "Mantenimiento" && "Registre los paros por mantenimiento indicando sistema, subsistema y subsubsistema."}
+                    {currentParoType === "Calidad" && "Registre los paros por calidad indicando el sistema afectado."}
+                    {currentParoType === "Operación" && "Registre los paros por operación indicando el sistema afectado."}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Close the paros dialog
+                      setShowAddParoDialog(false);
+                      
+                      // Reset the hourly production value to allow correction
+                      setHourlyProduction(finalHourlyProduction || "");
+                      
+                      // Open the hourly update dialog again
+                      setShowHourlyUpdate(true);
+                    }}
+                    className="text-xs flex items-center gap-1 self-end"
+                  >
+                    <ArrowLeft className="h-3 w-3" /> Corregir cajas producidas
+                  </Button>
+                </span>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -2365,8 +2522,80 @@ export function ProductionStatus() {
               Cancelar
             </Button>
             
-            <div>
-              {/* Navigation buttons */}
+            <div className="flex space-x-2">
+              {/* Back button - Only show for Calidad and Operación */}
+              {(currentParoType === "Calidad" || currentParoType === "Operación") && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    // Regresar al tipo anterior
+                    if (currentParoType === "Calidad") {
+                      setCurrentParoType("Mantenimiento");
+                      // Buscar tipo de paro Mantenimiento
+                      const mantenimientoTipo = stopTypes.find(tipo => tipo.nombre === "Mantenimiento");
+                      if (mantenimientoTipo) {
+                        setCurrentParo({
+                          tiempoMinutos: 0,
+                          tipoParoId: mantenimientoTipo.id,
+                          tipoParoNombre: mantenimientoTipo.nombre,
+                          sistemaId: "",
+                          subsistemaId: undefined,
+                          subsubsistemaId: undefined,
+                          descripcion: ""
+                        });
+                      }
+                    } else if (currentParoType === "Operación") {
+                      setCurrentParoType("Calidad");
+                      // Buscar tipo de paro Calidad
+                      const calidadTipo = stopTypes.find(tipo => tipo.nombre === "Calidad");
+                      if (calidadTipo) {
+                        setCurrentParo({
+                          tiempoMinutos: 0,
+                          tipoParoId: calidadTipo.id,
+                          tipoParoNombre: calidadTipo.nombre,
+                          desviacionCalidadId: "",
+                          materiaPrimaId: undefined,
+                          sistemaId: undefined,
+                          subsistemaId: undefined,
+                          subsubsistemaId: undefined,
+                          descripcion: ""
+                        });
+                      }
+                    }
+                    // Resetear el índice de edición cuando cambiamos de tipo
+                    setEditingParoIndex(null);
+                  }}
+                  className="flex items-center gap-1"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  {currentParoType === "Calidad" && "Volver a Mantenimiento"}
+                  {currentParoType === "Operación" && "Volver a Calidad"}
+                </Button>
+              )}
+              
+              {/* Botón para corregir cajas producidas - solo en primer paso */}
+              {currentParoType === "Mantenimiento" && (
+                <Button 
+                  variant="outline" 
+                  className="border-amber-200 text-amber-600 hover:text-amber-700 hover:bg-amber-50 flex items-center gap-1"
+                  onClick={() => {
+                    // Cerrar el diálogo de paros
+                    setShowAddParoDialog(false);
+                    
+                    // Restaurar los valores de producción por hora
+                    // El finalHourlyProduction se guarda en hourlyProduction para el diálogo de actualización
+                    setHourlyProduction(finalHourlyProduction);
+                    
+                    // Abrir el diálogo de actualización por hora
+                    setShowHourlyUpdate(true);
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Corregir cajas
+                </Button>
+              )}
+              
+              {/* Forward navigation buttons */}
               {(currentParoType === "Mantenimiento" || currentParoType === "Calidad") && (
                 <Button 
                   variant="default" 
@@ -2377,8 +2606,8 @@ export function ProductionStatus() {
                   )}
                   {currentParoType === "Calidad" && (
                     <>Continuar a Operación <ArrowRight className="ml-2 h-4 w-4" /></>
-              )}
-            </Button>
+                  )}
+                </Button>
               )}
               {currentParoType === "Operación" && (
                 <Button 
@@ -2406,67 +2635,74 @@ export function ProductionStatus() {
       
       {/* Finish Production Dialog */}
       <Dialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-success">Finalizar Producción</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-primary">Finalización de Producción</DialogTitle>
             <DialogDescription>
-              Ingrese la cantidad de cajas producidas en la última hora y registre los paros de producción.
+              Ingrese la cantidad de cajas producidas desde la última actualización.
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 flex items-center gap-1"
+                onClick={() => {
+                  // Cerrar el diálogo actual
+                  setShowFinishDialog(false);
+                  
+                  // Restablecer el valor de producción final
+                  setFinalHourlyProduction("");
+                  
+                  // Abrir nuevamente el diálogo de finalización de producción
+                  setTimeout(() => setShowFinishDialog(true), 100);
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Corregir cajas producidas
+              </Button>
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Production Notes Section - Moved to top */}
+          {productionNotes.length > 0 && (
+            <div className="border rounded-lg p-4 mb-4">
+              <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
+                <ClipboardCheck className="h-4 w-4 text-primary" />
+                Notas de Producción
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {productionNotes.map((note) => (
+                  <div 
+                    key={note.id}
+                    className="p-3 bg-yellow-100 dark:bg-yellow-900/50 rounded-sm border-b-4 border-yellow-200 dark:border-yellow-800 shadow-md transform rotate-1 hover:rotate-0 transition-transform duration-200 relative"
+                    style={{
+                      backgroundImage: 'linear-gradient(to bottom right, rgba(255,255,255,0.2), transparent)',
+                    }}
+                  >
+                    <p className="font-handwriting text-sm text-gray-800 dark:text-gray-200">{note.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="hourlyProduction" className="text-right font-medium">
+              <Label htmlFor="finalHourlyProduction" className="text-right font-medium">
                 Cajas producidas
               </Label>
               <Input
-                id="hourlyProduction"
+                id="finalHourlyProduction"
                 type="number"
                 value={finalHourlyProduction}
                 onChange={(e) => setFinalHourlyProduction(e.target.value)}
-                className="col-span-3 focus:ring-2 focus:ring-success focus:border-success transition-all duration-200"
-                placeholder="Ingrese la cantidad final"
+                className="col-span-3 focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200"
+                placeholder="Ingrese la cantidad de cajas"
               />
             </div>
-            
-            {/* Tiempo remanente cálculo */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right font-medium">
-                Tiempo transcurrido
-              </Label>
-              <div className="col-span-3">
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-medium">
-                      {lastUpdateTime ? 
-                        (() => {
-                          const ahora = new Date();
-                          const tiempoTranscurridoMinutos = Math.floor((ahora.getTime() - lastUpdateTime.getTime()) / (1000 * 60));
-                          const horas = Math.floor(tiempoTranscurridoMinutos / 60);
-                          const minutos = tiempoTranscurridoMinutos % 60;
-                          return `${horas}h ${minutos}m`;
-                        })() : 
-                        "No disponible"}
-                    </span>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p className="text-xs">
-                            Este es el tiempo transcurrido desde la última actualización. 
-                            Se registrará como tiempo real de producción.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <span className="text-xs text-muted-foreground mt-1">
-                    Desde: {lastUpdateTime?.toLocaleString([], {dateStyle: 'short', timeStyle: 'short'})}
-                  </span>
-                </div>
+            {order?.producto?.velocidadProduccion && (
+              <div className="text-sm text-muted-foreground px-4 py-2 bg-muted/30 rounded-md border border-muted/50">
+                <span className="font-medium">Velocidad registrada:</span> {order.producto.velocidadProduccion} cajas/hora
               </div>
-            </div>
+            )}
           </div>
           <DialogFooter className="flex justify-between">
             <Button 
@@ -2477,20 +2713,21 @@ export function ProductionStatus() {
               Cancelar
             </Button>
             <Button 
-              onClick={handleFinishProduction} 
-              disabled={isUpdating}
-              className="bg-success hover:bg-success-dark text-white transition-all duration-200"
+              variant="default" 
+              onClick={handleFinishProduction}
+              disabled={!finalHourlyProduction || isNaN(parseInt(finalHourlyProduction))}
+              className="bg-primary hover:bg-primary-dark text-white transition-all duration-200"
             >
               {isUpdating ? (
                 <>
                   <div className="relative mr-2">
-                    <Loader2 className="h-5 w-5 animate-spin-slow" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                     <span className="absolute inset-0 animate-ping h-full w-full rounded-full bg-white opacity-20"></span>
                   </div>
-                  <span className="animate-pulse">Finalizando producción...</span>
+                  <span className="animate-pulse">Procesando...</span>
                 </>
               ) : (
-                "Finalizar Producción"
+                "Finalizar"
               )}
             </Button>
           </DialogFooter>

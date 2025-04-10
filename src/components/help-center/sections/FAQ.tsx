@@ -1,6 +1,6 @@
 import React from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Info, FileStack, Settings, Code } from "lucide-react";
 
 export default function FAQ() {
   return (
@@ -18,7 +18,7 @@ export default function FAQ() {
           {/* Preguntas generales */}
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-              <HelpCircle className="h-5 w-5 text-blue-500" />
+              <Info className="h-5 w-5 text-blue-500" />
               Preguntas Generales
             </h2>
             
@@ -49,16 +49,51 @@ export default function FAQ() {
                 Para una mejor experiencia, recomendamos mantener su navegador actualizado a la última versión.
               </AccordionContent>
             </AccordionItem>
+
+            <AccordionItem value="item-3" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Cómo puedo cambiar mi contraseña?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                Para cambiar su contraseña:
+                <ol className="list-decimal pl-6 mt-2">
+                  <li>Haga clic en su perfil en la esquina superior derecha</li>
+                  <li>Seleccione "Configuración de cuenta"</li>
+                  <li>En la sección "Seguridad", haga clic en "Cambiar contraseña"</li>
+                  <li>Ingrese su contraseña actual</li>
+                  <li>Ingrese y confirme su nueva contraseña</li>
+                  <li>Haga clic en "Guardar cambios"</li>
+                </ol>
+                Su nueva contraseña debe tener al menos 8 caracteres e incluir letras, números y caracteres especiales para mayor seguridad.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-4" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Es posible personalizar mi dashboard?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                Sí, puede personalizar su dashboard según sus necesidades:
+                <ul className="list-disc pl-6 mt-2">
+                  <li>Haga clic en el botón "Personalizar" en la esquina superior derecha del dashboard</li>
+                  <li>Arrastre y suelte los widgets para reorganizarlos</li>
+                  <li>Haga clic en el icono de configuración de cada widget para ajustar sus parámetros</li>
+                  <li>Utilice el botón "Añadir widget" para incluir nuevos elementos</li>
+                  <li>Los widgets que no necesite pueden minimizarse o eliminarse</li>
+                </ul>
+                Los cambios se guardarán automáticamente y persistirán entre sesiones para su cuenta.
+              </AccordionContent>
+            </AccordionItem>
           </div>
           
           {/* Preguntas sobre producción */}
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-              <HelpCircle className="h-5 w-5 text-green-500" />
+              <FileStack className="h-5 w-5 text-green-500" />
               Producción y Órdenes
             </h2>
             
-            <AccordionItem value="item-3" className="border-b border-gray-200 py-2">
+            <AccordionItem value="item-5" className="border-b border-gray-200 py-2">
               <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
                 ¿Cómo puedo saber si una orden está retrasada?
               </AccordionTrigger>
@@ -75,7 +110,7 @@ export default function FAQ() {
               </AccordionContent>
             </AccordionItem>
             
-            <AccordionItem value="item-4" className="border-b border-gray-200 py-2">
+            <AccordionItem value="item-6" className="border-b border-gray-200 py-2">
               <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
                 ¿Puedo modificar una orden de producción en curso?
               </AccordionTrigger>
@@ -94,7 +129,7 @@ export default function FAQ() {
               </AccordionContent>
             </AccordionItem>
             
-            <AccordionItem value="item-5" className="border-b border-gray-200 py-2">
+            <AccordionItem value="item-7" className="border-b border-gray-200 py-2">
               <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
                 ¿Cómo registro un paro no planificado?
               </AccordionTrigger>
@@ -113,16 +148,33 @@ export default function FAQ() {
                 y cualquier acción correctiva implementada.
               </AccordionContent>
             </AccordionItem>
+
+            <AccordionItem value="item-8" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Cómo puedo ver el historial de paros de una línea de producción?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                Para ver el historial de paros de una línea específica:
+                <ol className="list-decimal pl-6 mt-2">
+                  <li>Vaya a la sección "Líneas de Producción"</li>
+                  <li>Seleccione la línea de producción que desea analizar</li>
+                  <li>Haga clic en la pestaña "Historial de Paros"</li>
+                  <li>Utilice los filtros disponibles para definir el período de tiempo</li>
+                  <li>Puede filtrar por tipo de paro, duración o impacto</li>
+                </ol>
+                Esta información es útil para identificar patrones y problemas recurrentes que puedan necesitar mantenimiento preventivo.
+              </AccordionContent>
+            </AccordionItem>
           </div>
           
           {/* Preguntas sobre análisis */}
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-              <HelpCircle className="h-5 w-5 text-purple-500" />
+              <Settings className="h-5 w-5 text-purple-500" />
               Análisis y Reportes
             </h2>
             
-            <AccordionItem value="item-6" className="border-b border-gray-200 py-2">
+            <AccordionItem value="item-9" className="border-b border-gray-200 py-2">
               <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
                 ¿Cómo puedo exportar un reporte a Excel?
               </AccordionTrigger>
@@ -140,7 +192,7 @@ export default function FAQ() {
               </AccordionContent>
             </AccordionItem>
             
-            <AccordionItem value="item-7" className="border-b border-gray-200 py-2">
+            <AccordionItem value="item-10" className="border-b border-gray-200 py-2">
               <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
                 ¿Cómo calcula el sistema la eficiencia de producción?
               </AccordionTrigger>
@@ -162,6 +214,136 @@ export default function FAQ() {
                 </ul>
                 Esta métrica se presenta en los reportes estratégicos y puede desglosarse por línea, 
                 producto o período de tiempo.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-11" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Puedo programar informes automatizados?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                Sí, puede programar informes para que se generen y envíen automáticamente:
+                <ol className="list-decimal pl-6 mt-2">
+                  <li>Vaya a la sección "Análisis" &gt; "Informes Programados"</li>
+                  <li>Haga clic en "Crear Nuevo Informe Programado"</li>
+                  <li>Seleccione el tipo de informe que desea programar</li>
+                  <li>Configure los parámetros y filtros necesarios</li>
+                  <li>Defina la frecuencia (diaria, semanal, mensual)</li>
+                  <li>Especifique los destinatarios del correo electrónico</li>
+                  <li>Establezca un asunto y mensaje personalizado (opcional)</li>
+                  <li>Haga clic en "Guardar y Activar"</li>
+                </ol>
+                Los informes se generarán y enviarán automáticamente según la programación establecida, incluso si no está conectado al sistema.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-12" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Cómo puedo comparar el rendimiento entre diferentes líneas?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                Para comparar el rendimiento entre diferentes líneas de producción:
+                <ol className="list-decimal pl-6 mt-2">
+                  <li>Vaya a la sección "Análisis" &gt; "Comparativa de Rendimiento"</li>
+                  <li>Seleccione "Líneas de Producción" en el menú desplegable</li>
+                  <li>Elija las líneas que desea comparar (máximo 5 para mejor visualización)</li>
+                  <li>Establezca el período de tiempo para la comparación</li>
+                  <li>Seleccione las métricas de rendimiento (eficiencia, productividad, tiempo de actividad, etc.)</li>
+                  <li>Haga clic en "Generar Comparativa"</li>
+                </ol>
+                El sistema mostrará gráficos comparativos que le permitirán identificar fácilmente qué líneas tienen mejor rendimiento y en qué aspectos específicos.
+              </AccordionContent>
+            </AccordionItem>
+          </div>
+
+          {/* Preguntas sobre soporte técnico */}
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+              <Code className="h-5 w-5 text-amber-500" />
+              Soporte Técnico
+            </h2>
+            
+            <AccordionItem value="item-13" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Cómo puedo reportar un error en la plataforma?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                Para reportar un error técnico:
+                <ol className="list-decimal pl-6 mt-2">
+                  <li>Haga clic en el icono de soporte (?) en la esquina inferior derecha</li>
+                  <li>Seleccione "Reportar un problema"</li>
+                  <li>Complete el formulario con la siguiente información:
+                    <ul className="list-disc pl-6 mt-1">
+                      <li>Descripción detallada del error</li>
+                      <li>Pasos para reproducir el problema</li>
+                      <li>Capturas de pantalla si es posible</li>
+                      <li>Información sobre su navegador y sistema</li>
+                    </ul>
+                  </li>
+                  <li>Haga clic en "Enviar reporte"</li>
+                </ol>
+                Nuestro equipo de soporte técnico revisará su reporte y se pondrá en contacto con usted si se requiere información adicional.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-14" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Cómo puedo solicitar una nueva funcionalidad?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                Para solicitar una nueva funcionalidad:
+                <ol className="list-decimal pl-6 mt-2">
+                  <li>Haga clic en el icono de soporte (?) en la esquina inferior derecha</li>
+                  <li>Seleccione "Solicitar nueva funcionalidad"</li>
+                  <li>Complete el formulario detallando:
+                    <ul className="list-disc pl-6 mt-1">
+                      <li>Descripción de la funcionalidad deseada</li>
+                      <li>Justificación y beneficios esperados</li>
+                      <li>Usuarios/departamentos que se beneficiarían</li>
+                      <li>Urgencia o prioridad sugerida</li>
+                    </ul>
+                  </li>
+                  <li>Haga clic en "Enviar solicitud"</li>
+                </ol>
+                Las solicitudes de nuevas funcionalidades son revisadas por nuestro equipo de producto durante las reuniones trimestrales de planificación. Las mejoras aprobadas se incorporan al plan de desarrollo según su prioridad.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-15" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Qué debo hacer si la plataforma está lenta o inaccesible?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                Si experimenta problemas de rendimiento:
+                <ol className="list-decimal pl-6 mt-2">
+                  <li>Verifique su conexión a internet</li>
+                  <li>Intente recargar la página (Ctrl+F5)</li>
+                  <li>Borre la caché del navegador y las cookies</li>
+                  <li>Intente acceder desde otro navegador</li>
+                  <li>Si el problema persiste, contacte a soporte técnico a través de:
+                    <ul className="list-disc pl-6 mt-1">
+                      <li>Teléfono de soporte: (55) 1234-5678</li>
+                      <li>Correo: soporte@tehuacanbrillante.com</li>
+                      <li>Chat en vivo (horario: 8:00 a 18:00, lunes a viernes)</li>
+                    </ul>
+                  </li>
+                </ol>
+                Para problemas críticos fuera del horario regular, contamos con soporte de emergencia 24/7 al (55) 8765-4321.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-16" className="border-b border-gray-200 py-2">
+              <AccordionTrigger className="text-left font-medium text-gray-700 hover:text-blue-600">
+                ¿Con qué frecuencia se actualiza la plataforma?
+              </AccordionTrigger>
+              <AccordionContent className="text-gray-600 pt-2 pl-4">
+                La plataforma Tehuacán Brillante sigue un calendario de actualizaciones regular:
+                <ul className="list-disc pl-6 mt-2">
+                  <li><strong>Actualizaciones menores (correcciones):</strong> Semanales, generalmente aplicadas durante mantenimientos nocturnos los martes</li>
+                  <li><strong>Actualizaciones de funcionalidad:</strong> Mensuales, implementadas el último domingo de cada mes</li>
+                  <li><strong>Actualizaciones mayores:</strong> Trimestrales, con nuevas capacidades significativas</li>
+                </ul>
+                Antes de cada actualización mayor, enviamos un correo informativo detallando las nuevas funcionalidades y cambios importantes. Para actualizaciones que requieran capacitación, organizamos sesiones de formación virtual con al menos una semana de anticipación.
               </AccordionContent>
             </AccordionItem>
           </div>

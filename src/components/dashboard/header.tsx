@@ -32,6 +32,9 @@ export function Header() {
   const { sidebarOpen, toggleSidebar, isMobile, sidebarHidden } = useSidebar();
   const router = useRouter();
   const { unreadCount: unreadNotificationsCount, isOpen: notificationsOpen, setIsOpen: setNotificationsOpen } = useNotifications();
+  
+  // Verificar si el usuario es jefe de producción
+  const isProductionChief = session?.user?.role === "PRODUCTION_CHIEF";
 
   // Get the first letter of the user's name for the avatar fallback
   const getInitials = () => {
@@ -80,48 +83,54 @@ export function Header() {
                 </div>
               </div>
               <div className="flex-shrink-0 flex items-center space-x-4">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="outline"
-                        size="icon" 
-                        className="relative bg-primary/10 border-primary/20 hover:bg-primary/20 text-black focus:ring-2 focus:ring-primary"
-                        aria-label="Centro de Ayuda"
-                        onClick={() => window.open('/help-center', '_blank')}
-                      >
-                        <HelpCircle className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-white text-black border border-gray-200">
-                      <p>Centro de Ayuda</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                {/* Mostrar Centro de Ayuda solo si NO es jefe de producción */}
+                {!isProductionChief && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline"
+                          size="icon" 
+                          className="relative bg-primary/10 border-primary/20 hover:bg-primary/20 text-black focus:ring-2 focus:ring-primary"
+                          aria-label="Centro de Ayuda"
+                          onClick={() => window.open('/help-center', '_blank')}
+                        >
+                          <HelpCircle className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-white text-black border border-gray-200">
+                        <p>Centro de Ayuda</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="outline"
-                        size="icon" 
-                        className="relative bg-primary/10 border-primary/20 hover:bg-primary/20 text-black focus:ring-2 focus:ring-primary"
-                        aria-label="Notificaciones"
-                        onClick={() => setNotificationsOpen(true)}
-                      >
-                        <Bell className="h-5 w-5" />
-                        {unreadNotificationsCount > 0 && (
-                          <span className="absolute -top-1 -right-1 block h-5 w-5 rounded-full bg-primary text-white text-[11px] font-bold flex items-center justify-center">
-                            {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-                          </span>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-white text-black border border-gray-200">
-                      <p>Notificaciones</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                {/* Mostrar Notificaciones solo si NO es jefe de producción */}
+                {!isProductionChief && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline"
+                          size="icon" 
+                          className="relative bg-primary/10 border-primary/20 hover:bg-primary/20 text-black focus:ring-2 focus:ring-primary"
+                          aria-label="Notificaciones"
+                          onClick={() => setNotificationsOpen(true)}
+                        >
+                          <Bell className="h-5 w-5" />
+                          {unreadNotificationsCount > 0 && (
+                            <span className="absolute -top-1 -right-1 block h-5 w-5 rounded-full bg-primary text-white text-[11px] font-bold flex items-center justify-center">
+                              {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                            </span>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-white text-black border border-gray-200">
+                        <p>Notificaciones</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
 
                 <DropdownMenu>
                   <TooltipProvider>
@@ -185,8 +194,8 @@ export function Header() {
         </div>
       </header>
 
-      {/* Panel de notificaciones */}
-      <NotificationPanel />
+      {/* Panel de notificaciones - mostrar solo si NO es jefe de producción */}
+      {!isProductionChief && <NotificationPanel />}
     </>
   );
 } 

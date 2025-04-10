@@ -18,7 +18,7 @@ export async function POST(
     }
 
     const orderId = params.id;
-    const { cajasProducidas } = await request.json();
+    const { cajasProducidas, lastUpdateTime } = await request.json();
 
     if (!orderId) {
       return NextResponse.json(
@@ -83,7 +83,7 @@ export async function POST(
       data: {
         cajasProducidas: cajasProducidas,
         estado: "en_progreso",
-        lastUpdateTime: new Date()
+        lastUpdateTime: lastUpdateTime ? new Date(lastUpdateTime) : new Date()
       },
     });
 
