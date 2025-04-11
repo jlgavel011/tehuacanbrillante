@@ -52,8 +52,6 @@ import { HourlyProductionEfficiency } from '@/components/analytics/reports/Hourl
 import RealVsPlannedTime from "@/components/analytics/reports/RealVsPlannedTime";
 import RealVsPlannedTimeByLine from "@/components/analytics/reports/RealVsPlannedTimeByLine";
 import RealVsPlannedTimeByShift from "@/components/analytics/reports/RealVsPlannedTimeByShift";
-import RealVsPlannedTimeByOperator from "@/components/analytics/reports/RealVsPlannedTimeByOperator";
-import { PlannedVsProducedBoxesByLineChief } from "@/components/analytics/reports/PlannedVsProducedBoxesByLineChief";
 import { PlannedVsProducedBoxesByLine } from "@/components/analytics/reports/PlannedVsProducedBoxesByLine";
 import { PlannedVsProducedBoxesByShift } from "@/components/analytics/reports/PlannedVsProducedBoxesByShift";
 import { ProductionHeatmapByDay } from "@/components/analytics/reports/ProductionHeatmapByDay";
@@ -61,6 +59,8 @@ import { ProductionHeatmapByHour } from "@/components/analytics/reports/Producti
 import { ReportBuilder } from "@/components/analytics/reports/ReportBuilder";
 import { ReportViewer } from "@/components/analytics/reports/ReportViewer";
 import { PencilRuler, BarChart2 } from "lucide-react";
+import { CajasProducidasPorJefe } from "@/components/analytics/reports/CajasProducidasPorJefe";
+import { JefesConMasParos } from "@/components/analytics/reports/JefesConMasParos";
 
 function AnalyticsContent() {
   const { 
@@ -232,8 +232,8 @@ function AnalyticsContent() {
           <div id="usuarios" className="bg-white rounded-lg shadow-sm p-4">
             <h2 className="text-lg font-semibold mb-4 p-2 rounded-md bg-[#f9e8f7]">Usuarios y Días</h2>
             <div className="grid gap-4 md:grid-cols-2">
-              <PlannedVsProducedBoxesByLineChief />
-              <RealVsPlannedTimeByOperator />
+              <CajasProducidasPorJefe />
+              <JefesConMasParos />
               <ProductionHeatmapByDay />
               <ProductionHeatmapByHour />
             </div>
