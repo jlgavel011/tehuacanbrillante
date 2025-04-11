@@ -31,6 +31,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 // Interfaces para los datos
 interface OrdenTiempoReal {
@@ -45,6 +47,7 @@ interface OrdenTiempoReal {
   tiempoReal: number;
   diferencia: number;
   diferenciaPorcentaje: number;
+  porcentajeCumplimiento?: number;
 }
 
 interface RealVsPlannedTimeResponse {
@@ -52,6 +55,7 @@ interface RealVsPlannedTimeResponse {
   totalOrdenes: number;
   promedioDesviacionPositiva: number;
   promedioDesviacionNegativa: number;
+  filtroCompletadas?: boolean;
 }
 
 type SortField = "orden" | "producto" | "linea" | "fecha" | "plan" | "real" | "diferencia" | "porcentaje";
@@ -70,6 +74,7 @@ function RealVsPlannedTimeDetail() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<SortField>("porcentaje");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [filtroCumplimiento, setFiltroCumplimiento] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,7 +87,7 @@ function RealVsPlannedTimeDetail() {
         
         // No incluimos el límite para obtener todas las órdenes
         const response = await fetch(
-          `/api/analytics/real-vs-planned-time?from=${from}&to=${to}`
+          `/api/analytics/real-vs-planned-time?from=${from}&to=${to}&includeIncomplete=${!filtroCumplimiento}`
         );
 
         if (!response.ok) {
@@ -115,7 +120,7 @@ function RealVsPlannedTimeDetail() {
     };
 
     fetchData();
-  }, [dateRange]);
+  }, [dateRange, filtroCumplimiento]);
 
   // Filtrar datos cuando cambia el término de búsqueda o la ordenación
   useEffect(() => {
@@ -225,6 +230,10 @@ function RealVsPlannedTimeDetail() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleFiltroCumplimientoChange = () => {
+    setFiltroCumplimiento(!filtroCumplimiento);
   };
 
   if (loading) {
@@ -339,21 +348,33 @@ function RealVsPlannedTimeDetail() {
             </div>
 
             {/* Filtros y botones */}
-            <div className="flex items-center justify-between mb-6">
-              <Input
-                placeholder="Buscar por orden, producto o línea..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-[450px]"
-              />
-              <div className="flex gap-2">
-                <Button variant="destructive" onClick={resetFilters}>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+                <Input
+                  placeholder="Buscar por orden, producto o línea..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full md:w-[450px]"
+                />
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="filtro-cumplimiento"
+                    checked={filtroCumplimiento}
+                    onCheckedChange={handleFiltroCumplimientoChange}
+                  />
+                  <Label htmlFor="filtro-cumplimiento" className="text-sm">
+                    Solo órdenes con ≥95% completadas
+                  </Label>
+                </div>
+              </div>
+              <div className="flex gap-2 w-full md:w-auto">
+                <Button variant="destructive" onClick={resetFilters} className="w-full md:w-auto">
                   Limpiar filtros
                 </Button>
                 <Button
                   variant="default"
                   onClick={handleExportCSV}
-                  className="gap-2"
+                  className="gap-2 w-full md:w-auto"
                 >
                   <Download className="h-4 w-4" />
                   Descargar

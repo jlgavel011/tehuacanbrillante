@@ -24,6 +24,7 @@ interface TurnoConTiempoReal {
   diferencia: number;
   diferenciaPorcentaje: number;
   totalOrdenes: number;
+  porcentajePromedioCumplimiento?: number;
 }
 
 interface RealVsPlannedTimeByShiftResponse {
@@ -31,6 +32,7 @@ interface RealVsPlannedTimeByShiftResponse {
   totalTurnos: number;
   promedioDesviacionPositiva: number;
   promedioDesviacionNegativa: number;
+  filtroCompletadas?: boolean;
 }
 
 export default function RealVsPlannedTimeByShift() {
@@ -42,6 +44,7 @@ export default function RealVsPlannedTimeByShift() {
   const [promedioDesviacionPositiva, setPromedioDesviacionPositiva] = useState(0);
   const [promedioDesviacionNegativa, setPromedioDesviacionNegativa] = useState(0);
   const [totalTurnos, setTotalTurnos] = useState(0);
+  const [filtroCompletadas, setFiltroCompletadas] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -53,7 +56,7 @@ export default function RealVsPlannedTimeByShift() {
         const to = dateRange?.to?.toISOString() || new Date().toISOString();
         
         const response = await fetch(
-          `/api/analytics/real-vs-planned-time-by-shift?from=${from}&to=${to}&limit=10`
+          `/api/analytics/real-vs-planned-time-by-shift?from=${from}&to=${to}&limit=10&includeIncomplete=false`
         );
 
         if (!response.ok) {
@@ -69,6 +72,7 @@ export default function RealVsPlannedTimeByShift() {
           setPromedioDesviacionPositiva(result.promedioDesviacionPositiva);
           setPromedioDesviacionNegativa(result.promedioDesviacionNegativa);
           setTotalTurnos(result.totalTurnos);
+          setFiltroCompletadas(result.filtroCompletadas !== false);
         }
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -194,6 +198,11 @@ export default function RealVsPlannedTimeByShift() {
                 />
               </div>
             </div>
+            {filtroCompletadas && (
+              <div className="px-6 pb-4 text-xs text-center text-muted-foreground">
+                * Solo se muestran órdenes con ≥95% de cajas completadas
+              </div>
+            )}
           </div>
         )}
       </div>

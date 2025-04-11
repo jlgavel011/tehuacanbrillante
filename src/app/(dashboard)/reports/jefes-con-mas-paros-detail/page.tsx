@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { downloadCSV } from "@/lib/utils/csv";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface JefeParosData {
   id: string;
@@ -52,7 +51,6 @@ function JefesConMasParosDetail() {
   const [searchTerm, setSearchTerm] = useState("");
   const [totalParos, setTotalParos] = useState(0);
   const [totalTiempoParos, setTotalTiempoParos] = useState(0);
-  const [tabView, setTabView] = useState<"cantidad" | "tiempo">("cantidad");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -241,154 +239,89 @@ function JefesConMasParosDetail() {
               </div>
             </div>
 
-            <Tabs value={tabView} onValueChange={(v) => setTabView(v as "cantidad" | "tiempo")} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="cantidad">Por Cantidad</TabsTrigger>
-                <TabsTrigger value="tiempo">Por Tiempo</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="cantidad" className="mt-0">
-                <Card>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleSort("nombre")}
-                              className="h-8 px-2 hover:bg-transparent"
-                            >
-                              Jefe de Línea
-                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableHead>
-                          <TableHead className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleSort("cantidadParos")}
-                              className="h-8 px-2 hover:bg-transparent"
-                            >
-                              Cantidad de Paros
-                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableHead>
-                          <TableHead className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleSort("porcentajeCantidad")}
-                              className="h-8 px-2 hover:bg-transparent"
-                            >
-                              % del Total
-                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableHead>
-                          <TableHead className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleSort("tiempoParos")}
-                              className="h-8 px-2 hover:bg-transparent"
-                            >
-                              Tiempo Total
-                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableHead>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("nombre")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          Jefe de Línea
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("cantidadParos")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          Cantidad
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("porcentajeCantidad")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          % Cantidad
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("tiempoParos")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          Tiempo
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("porcentajeTiempo")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          % Tiempo
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData
+                      .sort((a, b) => b.cantidadParos - a.cantidadParos)
+                      .map((jefe) => (
+                        <TableRow key={jefe.id} className="hover:bg-slate-50 border-b border-slate-100">
+                          <TableCell className="font-medium">{jefe.nombre}</TableCell>
+                          <TableCell className="text-right">{jefe.cantidadParos.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="text-purple-600">
+                              {jefe.porcentajeCantidad.toFixed(1)}%
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            {formatTiempo(jefe.tiempoParos)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="text-purple-600">
+                              {jefe.porcentajeTiempo.toFixed(1)}%
+                            </span>
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredData
-                          .sort((a, b) => b.cantidadParos - a.cantidadParos)
-                          .map((jefe) => (
-                            <TableRow key={jefe.id} className="hover:bg-slate-50 border-b border-slate-100">
-                              <TableCell className="font-medium">{jefe.nombre}</TableCell>
-                              <TableCell className="text-right">{jefe.cantidadParos.toLocaleString()}</TableCell>
-                              <TableCell className="text-right">
-                                <span className="text-purple-600">
-                                  {jefe.porcentajeCantidad.toFixed(1)}%
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right whitespace-nowrap">
-                                {formatTiempo(jefe.tiempoParos)}
-                              </TableCell>
-                            </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="tiempo" className="mt-0">
-                <Card>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleSort("nombre")}
-                              className="h-8 px-2 hover:bg-transparent"
-                            >
-                              Jefe de Línea
-                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableHead>
-                          <TableHead className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleSort("tiempoParos")}
-                              className="h-8 px-2 hover:bg-transparent"
-                            >
-                              Tiempo de Paros
-                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableHead>
-                          <TableHead className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleSort("porcentajeTiempo")}
-                              className="h-8 px-2 hover:bg-transparent"
-                            >
-                              % del Total
-                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableHead>
-                          <TableHead className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleSort("cantidadParos")}
-                              className="h-8 px-2 hover:bg-transparent"
-                            >
-                              Cantidad
-                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredData
-                          .sort((a, b) => b.tiempoParos - a.tiempoParos)
-                          .map((jefe) => (
-                            <TableRow key={jefe.id} className="hover:bg-slate-50 border-b border-slate-100">
-                              <TableCell className="font-medium">{jefe.nombre}</TableCell>
-                              <TableCell className="text-right font-medium">{formatTiempo(jefe.tiempoParos)}</TableCell>
-                              <TableCell className="text-right">
-                                <span className="text-purple-600">
-                                  {jefe.porcentajeTiempo.toFixed(1)}%
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right whitespace-nowrap">
-                                {jefe.cantidadParos.toLocaleString()}
-                              </TableCell>
-                            </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </>
         )}
       </div>

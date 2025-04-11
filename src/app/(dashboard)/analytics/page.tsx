@@ -61,8 +61,12 @@ import { ReportViewer } from "@/components/analytics/reports/ReportViewer";
 import { PencilRuler, BarChart2 } from "lucide-react";
 import { CajasProducidasPorJefe } from "@/components/analytics/reports/CajasProducidasPorJefe";
 import { JefesConMasParos } from "@/components/analytics/reports/JefesConMasParos";
+import { LiveDataView } from "@/components/analytics/live-data/LiveDataView";
+import { Activity } from "lucide-react";
 
 function AnalyticsContent() {
+  const [activeTab, setActiveTab] = useState("strategic");
+
   const { 
     date, 
     setDate, 
@@ -107,25 +111,35 @@ function AnalyticsContent() {
     <div className="flex flex-col gap-4 p-4 bg-background min-h-[calc(100vh-4rem)]">
       <div className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
         <h1 className="text-xl font-semibold">Analítica y Reportes</h1>
-        <div className="flex items-center gap-4">
-          <DateRangeFilter
-            date={date}
-            onDateChange={setDate}
-            selectedPeriod={selectedPeriod}
-            onPeriodChange={setSelectedPeriod}
-          />
-          <CompareWithFilter
-            selectedComparison={comparisonPeriod}
-            onComparisonChange={setComparisonPeriod}
-          />
-        </div>
+        {activeTab !== "live-data" && (
+          <div className="flex items-center gap-4">
+            <DateRangeFilter
+              date={date}
+              onDateChange={setDate}
+              selectedPeriod={selectedPeriod}
+              onPeriodChange={setSelectedPeriod}
+            />
+            <CompareWithFilter
+              selectedComparison={comparisonPeriod}
+              onComparisonChange={setComparisonPeriod}
+            />
+          </div>
+        )}
       </div>
 
-      <Tabs defaultValue="strategic" className="w-full flex flex-col flex-grow">
+      <Tabs 
+        defaultValue="strategic" 
+        className="w-full flex flex-col flex-grow"
+        onValueChange={setActiveTab}
+      >
         <div className="flex items-center justify-between mb-4">
           <TabsList className="bg-white shadow-sm">
             <TabsTrigger value="strategic" className="data-[state=active]:bg-primary/10">
               Reportes Estratégicos
+            </TabsTrigger>
+            <TabsTrigger value="live-data" className="data-[state=active]:bg-primary/10">
+              <Activity className="h-4 w-4 mr-1" />
+              Datos en Vivo
             </TabsTrigger>
             <TabsTrigger value="detailed" className="data-[state=active]:bg-primary/10">
               Explorador de Reportes
@@ -372,6 +386,13 @@ function AnalyticsContent() {
                 <RawMaterialStops />
               </div>
             </div>
+          </div>
+        </TabsContent>
+
+        {/* New Tab: Live Data */}
+        <TabsContent value="live-data" className="mt-2 flex flex-col flex-grow">
+          <div className="bg-white rounded-lg shadow-sm p-6 flex-grow max-w-[1600px] mx-auto w-full">
+            <LiveDataView />
           </div>
         </TabsContent>
 

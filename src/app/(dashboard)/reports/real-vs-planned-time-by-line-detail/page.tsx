@@ -27,6 +27,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import { downloadCSV } from "@/lib/utils/csv";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 // Interfaces para los datos
 interface LineaConTiempoReal {
@@ -37,6 +39,7 @@ interface LineaConTiempoReal {
   diferencia: number;
   diferenciaPorcentaje: number;
   totalOrdenes: number;
+  porcentajePromedioCumplimiento?: number;
 }
 
 interface RealVsPlannedTimeByLineResponse {
@@ -44,6 +47,7 @@ interface RealVsPlannedTimeByLineResponse {
   totalLineas: number;
   promedioDesviacionPositiva: number;
   promedioDesviacionNegativa: number;
+  filtroCompletadas?: boolean;
 }
 
 type SortField = "linea" | "plan" | "real" | "diferencia" | "porcentaje" | "ordenes";
@@ -61,6 +65,7 @@ function RealVsPlannedTimeByLineDetail() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [promedioDesviacionPositiva, setPromedioDesviacionPositiva] = useState(0);
   const [promedioDesviacionNegativa, setPromedioDesviacionNegativa] = useState(0);
+  const [filtroCumplimiento, setFiltroCumplimiento] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,7 +77,7 @@ function RealVsPlannedTimeByLineDetail() {
         const to = dateRange?.to?.toISOString() || new Date().toISOString();
         
         const response = await fetch(
-          `/api/analytics/real-vs-planned-time-by-line?from=${from}&to=${to}`
+          `/api/analytics/real-vs-planned-time-by-line?from=${from}&to=${to}&includeIncomplete=${!filtroCumplimiento}`
         );
 
         if (!response.ok) {
@@ -98,7 +103,7 @@ function RealVsPlannedTimeByLineDetail() {
     };
 
     fetchData();
-  }, [dateRange]);
+  }, [dateRange, filtroCumplimiento]);
 
   // Filtrar datos cuando cambia el término de búsqueda o la ordenación
   useEffect(() => {
@@ -177,6 +182,10 @@ function RealVsPlannedTimeByLineDetail() {
     }));
     
     downloadCSV(csvData, "tiempo_real_vs_plan_por_linea");
+  };
+
+  const handleFiltroCumplimientoChange = () => {
+    setFiltroCumplimiento(!filtroCumplimiento);
   };
 
   if (loading) {
@@ -280,14 +289,26 @@ function RealVsPlannedTimeByLineDetail() {
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="relative w-full md:w-64">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar línea..."
-                    value={searchTerm}
-                    onChange={handleSearch}
-                    className="pl-8"
-                  />
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <div className="relative w-full md:w-64">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar línea..."
+                      value={searchTerm}
+                      onChange={handleSearch}
+                      className="pl-8"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="filtro-cumplimiento"
+                      checked={filtroCumplimiento}
+                      onCheckedChange={handleFiltroCumplimientoChange}
+                    />
+                    <Label htmlFor="filtro-cumplimiento" className="text-sm">
+                      Solo órdenes con ≥95% completadas
+                    </Label>
+                  </div>
                 </div>
                 <Button
                   variant="default"

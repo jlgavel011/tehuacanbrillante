@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { downloadCSV } from "@/lib/utils/csv";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface JefeLineaData {
   id: string;
@@ -53,7 +52,6 @@ function CajasProducidasPorJefeDetail() {
   const [searchTerm, setSearchTerm] = useState("");
   const [totalCajasProducidas, setTotalCajasProducidas] = useState(0);
   const [totalLitrosProducidos, setTotalLitrosProducidos] = useState(0);
-  const [metrica, setMetrica] = useState<"cajas" | "litros">("cajas");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -199,13 +197,17 @@ function CajasProducidasPorJefeDetail() {
                 <CardTitle>Resumen General</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
                   <div className="rounded-lg bg-slate-50 p-4">
-                    <div className="text-sm text-muted-foreground mb-1">Total {metrica === "cajas" ? "Cajas" : "Litros"} Producidos</div>
+                    <div className="text-sm text-muted-foreground mb-1">Total Cajas Producidas</div>
                     <div className="text-2xl font-bold">
-                      {metrica === "cajas" 
-                        ? formatValue(totalCajasProducidas) 
-                        : formatValue(totalLitrosProducidos) + " L"}
+                      {formatValue(totalCajasProducidas)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <div className="text-sm text-muted-foreground mb-1">Total Litros Producidos</div>
+                    <div className="text-2xl font-bold">
+                      {formatValue(totalLitrosProducidos)} L
                     </div>
                   </div>
                   <div className="rounded-lg bg-slate-50 p-4">
@@ -213,12 +215,10 @@ function CajasProducidasPorJefeDetail() {
                     <div className="text-2xl font-bold">{filteredData.length}</div>
                   </div>
                   <div className="rounded-lg bg-slate-50 p-4">
-                    <div className="text-sm text-muted-foreground mb-1">Promedio por Jefe</div>
+                    <div className="text-sm text-muted-foreground mb-1">Promedio Cajas por Jefe</div>
                     <div className="text-2xl font-bold">
                       {filteredData.length > 0 
-                        ? (metrica === "cajas"
-                            ? formatValue(Math.round(totalCajasProducidas / filteredData.length))
-                            : formatValue(Math.round(totalLitrosProducidos / filteredData.length)) + " L")
+                        ? formatValue(Math.round(totalCajasProducidas / filteredData.length))
                         : '0'}
                       <CheckCircle className="inline-block ml-2 w-5 h-5 text-purple-500" />
                     </div>
@@ -248,89 +248,104 @@ function CajasProducidasPorJefeDetail() {
               </div>
             </div>
 
-            <Tabs value={metrica} onValueChange={(v) => setMetrica(v as "cajas" | "litros")} className="w-full">
-              <div className="flex justify-center mb-6">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="cajas">Cajas Producidas</TabsTrigger>
-                  <TabsTrigger value="litros">Litros Producidos</TabsTrigger>
-                </TabsList>
-              </div>
-
-              <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => handleSort("nombre")}
-                            className="h-8 px-2 hover:bg-transparent"
-                          >
-                            Jefe de Línea
-                            <ArrowUpDown className="ml-2 h-4 w-4" />
-                          </Button>
-                        </TableHead>
-                        <TableHead className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => handleSort("totalOrdenes")}
-                            className="h-8 px-2 hover:bg-transparent"
-                          >
-                            Órdenes
-                            <ArrowUpDown className="ml-2 h-4 w-4" />
-                          </Button>
-                        </TableHead>
-                        <TableHead className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => handleSort(metrica === "cajas" ? "cajasProducidas" : "litrosProducidos")}
-                            className="h-8 px-2 hover:bg-transparent"
-                          >
-                            {metrica === "cajas" ? "Cajas Producidas" : "Litros Producidos"}
-                            <ArrowUpDown className="ml-2 h-4 w-4" />
-                          </Button>
-                        </TableHead>
-                        <TableHead className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => handleSort(metrica === "cajas" ? "porcentajeCajas" : "porcentajeLitros")}
-                            className="h-8 px-2 hover:bg-transparent"
-                          >
-                            % del Total
-                            <ArrowUpDown className="ml-2 h-4 w-4" />
-                          </Button>
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredData
-                        .sort((a, b) => b[metrica === "cajas" ? "cajasProducidas" : "litrosProducidos"] - 
-                                        a[metrica === "cajas" ? "cajasProducidas" : "litrosProducidos"])
-                        .map((chief) => (
-                          <TableRow key={chief.id} className="hover:bg-slate-50 border-b border-slate-100">
-                            <TableCell className="font-medium">{chief.nombre}</TableCell>
-                            <TableCell className="text-right">{chief.totalOrdenes}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {metrica === "cajas" 
-                                ? formatValue(chief.cajasProducidas)
-                                : formatValue(chief.litrosProducidos) + " L"}
-                            </TableCell>
-                            <TableCell className="text-right whitespace-nowrap">
-                              <span className="text-purple-600">
-                                {(metrica === "cajas" 
-                                  ? chief.porcentajeCajas 
-                                  : chief.porcentajeLitros).toFixed(1)}%
-                                <CheckCircle className="inline-block ml-1 w-3 h-3" />
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </Tabs>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("nombre")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          Jefe de Línea
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("totalOrdenes")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          Órdenes
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("cajasProducidas")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          Cajas
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("porcentajeCajas")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          % Cajas
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("litrosProducidos")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          Litros
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => handleSort("porcentajeLitros")}
+                          className="h-8 px-2 hover:bg-transparent"
+                        >
+                          % Litros
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData
+                      .sort((a, b) => b.cajasProducidas - a.cajasProducidas)
+                      .map((chief) => (
+                        <TableRow key={chief.id} className="hover:bg-slate-50 border-b border-slate-100">
+                          <TableCell className="font-medium">{chief.nombre}</TableCell>
+                          <TableCell className="text-right">{chief.totalOrdenes}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatValue(chief.cajasProducidas)}
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <span className="text-purple-600">
+                              {chief.porcentajeCajas.toFixed(1)}%
+                              <CheckCircle className="inline-block ml-1 w-3 h-3" />
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatValue(chief.litrosProducidos)} L
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <span className="text-purple-600">
+                              {chief.porcentajeLitros.toFixed(1)}%
+                              <CheckCircle className="inline-block ml-1 w-3 h-3" />
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </>
         )}
       </div>

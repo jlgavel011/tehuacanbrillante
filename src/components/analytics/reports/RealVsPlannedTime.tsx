@@ -28,6 +28,7 @@ interface OrdenTiempoReal {
   tiempoReal: number;
   diferencia: number;
   diferenciaPorcentaje: number;
+  porcentajeCumplimiento?: number;
 }
 
 interface RealVsPlannedTimeResponse {
@@ -35,6 +36,7 @@ interface RealVsPlannedTimeResponse {
   totalOrdenes: number;
   promedioDesviacionPositiva: number;
   promedioDesviacionNegativa: number;
+  filtroCompletadas?: boolean;
 }
 
 export default function RealVsPlannedTime() {
@@ -46,6 +48,7 @@ export default function RealVsPlannedTime() {
   const [promedioDesviacionPositiva, setPromedioDesviacionPositiva] = useState(0);
   const [promedioDesviacionNegativa, setPromedioDesviacionNegativa] = useState(0);
   const [totalOrdenes, setTotalOrdenes] = useState(0);
+  const [filtroCompletadas, setFiltroCompletadas] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,7 +60,7 @@ export default function RealVsPlannedTime() {
         const to = dateRange?.to?.toISOString() || new Date().toISOString();
         
         const response = await fetch(
-          `/api/analytics/real-vs-planned-time?from=${from}&to=${to}&limit=10`
+          `/api/analytics/real-vs-planned-time?from=${from}&to=${to}&limit=10&includeIncomplete=false`
         );
 
         if (!response.ok) {
@@ -73,6 +76,7 @@ export default function RealVsPlannedTime() {
           setPromedioDesviacionPositiva(result.promedioDesviacionPositiva);
           setPromedioDesviacionNegativa(result.promedioDesviacionNegativa);
           setTotalOrdenes(result.totalOrdenes);
+          setFiltroCompletadas(result.filtroCompletadas !== false);
         }
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -198,6 +202,11 @@ export default function RealVsPlannedTime() {
                 />
               </div>
             </div>
+            {filtroCompletadas && (
+              <div className="px-6 pb-4 text-xs text-center text-muted-foreground">
+                * Solo se muestran órdenes con ≥95% de cajas completadas
+              </div>
+            )}
           </div>
         )}
       </div>

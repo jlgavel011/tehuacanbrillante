@@ -27,6 +27,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import { downloadCSV } from "@/lib/utils/csv";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 // Interfaces para los datos
 interface TurnoConTiempoReal {
@@ -37,6 +39,7 @@ interface TurnoConTiempoReal {
   diferencia: number;
   diferenciaPorcentaje: number;
   totalOrdenes: number;
+  porcentajePromedioCumplimiento?: number;
 }
 
 interface RealVsPlannedTimeByShiftResponse {
@@ -44,6 +47,7 @@ interface RealVsPlannedTimeByShiftResponse {
   totalTurnos: number;
   promedioDesviacionPositiva: number;
   promedioDesviacionNegativa: number;
+  filtroCompletadas?: boolean;
 }
 
 type SortField = "turno" | "plan" | "real" | "diferencia" | "porcentaje" | "ordenes";
@@ -61,6 +65,7 @@ function RealVsPlannedTimeByShiftDetail() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [promedioDesviacionPositiva, setPromedioDesviacionPositiva] = useState(0);
   const [promedioDesviacionNegativa, setPromedioDesviacionNegativa] = useState(0);
+  const [filtroCumplimiento, setFiltroCumplimiento] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,7 +77,7 @@ function RealVsPlannedTimeByShiftDetail() {
         const to = dateRange?.to?.toISOString() || new Date().toISOString();
         
         const response = await fetch(
-          `/api/analytics/real-vs-planned-time-by-shift?from=${from}&to=${to}`
+          `/api/analytics/real-vs-planned-time-by-shift?from=${from}&to=${to}&includeIncomplete=${!filtroCumplimiento}`
         );
 
         if (!response.ok) {
@@ -98,7 +103,7 @@ function RealVsPlannedTimeByShiftDetail() {
     };
 
     fetchData();
-  }, [dateRange]);
+  }, [dateRange, filtroCumplimiento]);
 
   // Filtrar datos cuando cambia el término de búsqueda o la ordenación
   useEffect(() => {
@@ -179,6 +184,10 @@ function RealVsPlannedTimeByShiftDetail() {
     downloadCSV(csvData, "tiempo_real_vs_plan_por_turno");
   };
 
+  const handleFiltroCumplimientoChange = () => {
+    setFiltroCumplimiento(!filtroCumplimiento);
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6 max-w-7xl">
@@ -242,18 +251,30 @@ function RealVsPlannedTimeByShiftDetail() {
         ) : (
           <>
             {/* Filtros y botones */}
-            <div className="flex items-center justify-between mb-6">
-              <Input
-                placeholder="Buscar por nombre de turno..."
-                value={searchTerm}
-                onChange={handleSearch}
-                className="w-[450px]"
-              />
-              <div className="flex gap-2">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+                <Input
+                  placeholder="Buscar por nombre de turno..."
+                  value={searchTerm}
+                  onChange={handleSearch}
+                  className="w-full md:w-[450px]"
+                />
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="filtro-cumplimiento"
+                    checked={filtroCumplimiento}
+                    onCheckedChange={handleFiltroCumplimientoChange}
+                  />
+                  <Label htmlFor="filtro-cumplimiento" className="text-sm">
+                    Solo órdenes con ≥95% completadas
+                  </Label>
+                </div>
+              </div>
+              <div className="flex gap-2 w-full md:w-auto">
                 <Button
                   variant="default"
                   onClick={handleDownloadCSV}
-                  className="gap-2"
+                  className="gap-2 w-full md:w-auto"
                 >
                   <Download className="h-4 w-4" />
                   Descargar

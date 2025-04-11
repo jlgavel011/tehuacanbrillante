@@ -15,6 +15,7 @@ type OrdenConTiempoReal = {
   tiempoReal: number;
   diferencia: number;
   diferenciaPorcentaje: number;
+  porcentajeCumplimiento?: number;
 };
 
 export async function GET(request: Request) {
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     const fromParam = searchParams.get('from');
     const toParam = searchParams.get('to');
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit') as string) : 10;
+    const includeIncompleteOrders = searchParams.get('includeIncomplete') === 'true';
 
     if (!fromParam || !toParam) {
       return NextResponse.json(
@@ -90,6 +92,25 @@ export async function GET(request: Request) {
         const diferenciaPorcentaje = tiempoPlan > 0 
           ? ((tiempoReal - tiempoPlan) / tiempoPlan) * 100 
           : 0;
+          
+        // @ts-ignore - Ignoramos errores de tipos
+        const cajasProducidas = orden.cajasProducidas || 0;
+        // @ts-ignore - Ignoramos errores de tipos
+        const cajasPlanificadas = orden.cajasPlanificadas || 0;
+        
+        const porcentajeCumplimiento = cajasPlanificadas > 0 
+          ? (cajasProducidas / cajasPlanificadas) * 100 
+          : 0;
+        
+        // Logging para depuración
+        console.log(`Orden ${orden.id}: cajasProducidas=${cajasProducidas}, cajasPlanificadas=${cajasPlanificadas}, porcentaje=${porcentajeCumplimiento}%, includeIncomplete=${includeIncompleteOrders}`);
+        
+        // Solo incluir órdenes que han completado el 95% o más de sus cajas planificadas,
+        // o todas las órdenes si includeIncompleteOrders es true
+        if (!includeIncompleteOrders && porcentajeCumplimiento < 95) {
+          console.log(`  -> Saltando orden ${orden.id} por no cumplir criterio (${porcentajeCumplimiento.toFixed(1)}%)`);
+          continue; // Saltamos esta orden si no cumple con el criterio
+        }
         
         ordenesConTiempoReal.push({
           // @ts-ignore - Ignoramos errores de tipos
@@ -110,6 +131,7 @@ export async function GET(request: Request) {
           tiempoReal,
           diferencia: tiempoReal - tiempoPlan,
           diferenciaPorcentaje: Math.round(diferenciaPorcentaje * 10) / 10,
+          porcentajeCumplimiento: Math.round(porcentajeCumplimiento * 10) / 10
         });
       } catch (err) {
         console.error("Error processing order:", err);
@@ -151,6 +173,7 @@ export async function GET(request: Request) {
       totalOrdenes: ordenesConTiempoReal.length,
       promedioDesviacionPositiva: Math.round(promedioDiferenciasPositivas * 10) / 10,
       promedioDesviacionNegativa: Math.round(promedioDiferenciasNegativas * 10) / 10,
+      filtroCompletadas: !includeIncompleteOrders
     });
     
   } catch (error) {

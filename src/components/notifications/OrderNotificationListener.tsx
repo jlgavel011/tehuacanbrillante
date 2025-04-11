@@ -3,59 +3,96 @@
 import { useEffect } from 'react';
 import { useNotifications } from '@/lib/context/NotificationContext';
 
-// Este componente no renderiza nada, solo escucha eventos y maneja notificaciones
+// Este componente escucha interacciones con la API y genera notificaciones
 export default function OrderNotificationListener() {
   const { addNotification } = useNotifications();
 
   useEffect(() => {
-    // Esta es una forma simplificada. En un caso real, podrías escuchar un evento de un WebSocket
-    // o hacer polling a una API para detectar cambios de estado.
-
-    // Función para manejar la interceptación de llamadas a la API
-    const fetchOriginal = window.fetch;
+    // Interceptamos fetch para capturar las interacciones con la API
+    const originalFetch = window.fetch;
     
-    // Sobreescribimos la función fetch para interceptar las respuestas de la API
     window.fetch = async (...args) => {
       const [url, options] = args;
       
       // Obtenemos la respuesta original
-      const response = await fetchOriginal(...args);
+      const response = await originalFetch(...args);
       
       // Clonamos la respuesta para no consumirla
       const responseClone = response.clone();
       
       try {
-        // Solo procesamos las respuestas de las API de órdenes de producción
-        if (
-          typeof url === 'string' && 
-          (url.includes('/api/production-orders') && 
-          (url.includes('/start') || url.includes('/finish')))
-        ) {
-          const data = await responseClone.json();
+        // Solo procesamos peticiones a la API de órdenes de producción
+        if (typeof url === 'string' && url.includes('/api/production-orders')) {
           
           // Si la respuesta es exitosa, verificamos el tipo de operación
           if (response.ok) {
-            // Verificamos si es una orden iniciada
-            if (url.includes('/start')) {
+            const data = await responseClone.json();
+            
+            // APERTURA DE ORDEN: Cuando se inicia una orden por primera vez
+            if (url.includes('/start') && options?.method === 'POST') {
               const orderData = data;
+              
               if (orderData && orderData.id) {
+                const orderNumber = orderData.numeroOrden || orderData.id.substring(0, 8);
+                const productName = orderData.producto?.nombre || 'Producto';
+                
                 addNotification({
-                  title: 'Orden iniciada',
-                  message: `La orden #${orderData.numeroOrden || orderData.id.substring(0, 8)} ha comenzado la producción.`,
+                  title: '🚀 Orden Iniciada',
+                  message: `La orden #${orderNumber} de ${productName} ha comenzado la producción.`,
                   type: 'info',
                   link: `/production-orders/${orderData.id}`
                 });
               }
             }
             
-            // Verificamos si es una orden finalizada
-            if (url.includes('/finish')) {
-              const orderData = data.order;
-              if (orderData && orderData.id && data.message.includes('finalizada')) {
+            // REAPERTURA DE ORDEN: Cuando se reabre una orden que estaba en pausa
+            if (url.includes('/reopen') && options?.method === 'POST') {
+              const orderData = data.order || data;
+              
+              if (orderData && orderData.id) {
+                const orderNumber = orderData.numeroOrden || orderData.id.substring(0, 8);
+                const productName = orderData.producto?.nombre || 'Producto';
+                
                 addNotification({
-                  title: 'Orden completada',
-                  message: `La orden #${orderData.numeroOrden || orderData.id.substring(0, 8)} se ha completado con éxito.`,
+                  title: '🔄 Orden Reabierta',
+                  message: `La orden #${orderNumber} de ${productName} ha sido reabierta y está nuevamente en producción.`,
+                  type: 'warning',
+                  link: `/production-orders/${orderData.id}`
+                });
+              }
+            }
+            
+            // FINALIZACIÓN DE ORDEN: Cuando se completa una orden
+            if (url.includes('/finish') && options?.method === 'POST') {
+              const orderData = data.order || data;
+              const message = data.message || '';
+              
+              if (orderData && orderData.id && message.includes('finalizada')) {
+                const orderNumber = orderData.numeroOrden || orderData.id.substring(0, 8);
+                const productName = orderData.producto?.nombre || 'Producto';
+                const cajasProducidas = orderData.cajasProducidas || 0;
+                
+                addNotification({
+                  title: '✅ Orden Completada',
+                  message: `La orden #${orderNumber} de ${productName} se ha completado con éxito. Cajas producidas: ${cajasProducidas}.`,
                   type: 'success',
+                  link: `/production-orders/${orderData.id}`
+                });
+              }
+            }
+            
+            // CANCELACIÓN DE ORDEN: Cuando se cancela una orden
+            if (url.includes('/cancel') && options?.method === 'POST') {
+              const orderData = data.order || data;
+              
+              if (orderData && orderData.id) {
+                const orderNumber = orderData.numeroOrden || orderData.id.substring(0, 8);
+                const productName = orderData.producto?.nombre || 'Producto';
+                
+                addNotification({
+                  title: '❌ Orden Cancelada',
+                  message: `La orden #${orderNumber} de ${productName} ha sido cancelada.`,
+                  type: 'error',
                   link: `/production-orders/${orderData.id}`
                 });
               }
@@ -69,9 +106,9 @@ export default function OrderNotificationListener() {
       return response;
     };
     
-    // Limpieza al desmontar
+    // Limpieza al desmontar el componente
     return () => {
-      window.fetch = fetchOriginal;
+      window.fetch = originalFetch;
     };
   }, [addNotification]);
 

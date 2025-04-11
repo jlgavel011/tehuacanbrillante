@@ -24,6 +24,7 @@ interface LineaConTiempoReal {
   diferencia: number;
   diferenciaPorcentaje: number;
   totalOrdenes: number;
+  porcentajePromedioCumplimiento?: number;
 }
 
 interface RealVsPlannedTimeByLineResponse {
@@ -31,6 +32,7 @@ interface RealVsPlannedTimeByLineResponse {
   totalLineas: number;
   promedioDesviacionPositiva: number;
   promedioDesviacionNegativa: number;
+  filtroCompletadas?: boolean;
 }
 
 export default function RealVsPlannedTimeByLine() {
@@ -42,6 +44,7 @@ export default function RealVsPlannedTimeByLine() {
   const [promedioDesviacionPositiva, setPromedioDesviacionPositiva] = useState(0);
   const [promedioDesviacionNegativa, setPromedioDesviacionNegativa] = useState(0);
   const [totalLineas, setTotalLineas] = useState(0);
+  const [filtroCompletadas, setFiltroCompletadas] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -53,7 +56,7 @@ export default function RealVsPlannedTimeByLine() {
         const to = dateRange?.to?.toISOString() || new Date().toISOString();
         
         const response = await fetch(
-          `/api/analytics/real-vs-planned-time-by-line?from=${from}&to=${to}&limit=10`
+          `/api/analytics/real-vs-planned-time-by-line?from=${from}&to=${to}&limit=10&includeIncomplete=false`
         );
 
         if (!response.ok) {
@@ -69,6 +72,7 @@ export default function RealVsPlannedTimeByLine() {
           setPromedioDesviacionPositiva(result.promedioDesviacionPositiva);
           setPromedioDesviacionNegativa(result.promedioDesviacionNegativa);
           setTotalLineas(result.totalLineas);
+          setFiltroCompletadas(result.filtroCompletadas !== false);
         }
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -104,14 +108,16 @@ export default function RealVsPlannedTimeByLine() {
       title="Tiempo Real vs Planificado por Línea"
       subtitle="Comparación de tiempos de producción real vs planificado por línea"
       headerExtra={
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleViewDetails}
-          className="h-8 w-8"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+        <>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleViewDetails}
+            className="h-8 w-8"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </>
       }
       className="p-0 relative"
       headerClassName="bg-surface/50"
@@ -194,6 +200,11 @@ export default function RealVsPlannedTimeByLine() {
                 />
               </div>
             </div>
+            {filtroCompletadas && (
+              <div className="px-6 pb-4 text-xs text-center text-muted-foreground">
+                * Solo se muestran órdenes con ≥95% de cajas completadas
+              </div>
+            )}
           </div>
         )}
       </div>
