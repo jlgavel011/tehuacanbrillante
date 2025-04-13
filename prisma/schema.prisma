@@ -25,6 +25,8 @@ model User {
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   historialesProduccion ProduccionHistorial[]
+  notificaciones        Notificacion[]
+  notificacionesGeneradas Notificacion[] @relation("NotificationSource")
 
   @@map("users")
 }
@@ -298,4 +300,22 @@ model ProduccionHistorial {
   updatedAt                  DateTime        @updatedAt
 
   @@map("produccion_historial")
+}
+
+// Modelo para notificaciones persistentes
+model Notificacion {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  message      String
+  type         String    // 'info', 'success', 'warning', 'error'
+  link         String?
+  read         Boolean   @default(false)
+  userId       String    @db.ObjectId
+  user         User      @relation(fields: [userId], references: [id])
+  sourceUserId String?   @db.ObjectId
+  sourceUser   User?     @relation("NotificationSource", fields: [sourceUserId], references: [id])
+  createdAt    DateTime  @default(now())
+  readAt       DateTime?
+
+  @@map("notificaciones")
 }

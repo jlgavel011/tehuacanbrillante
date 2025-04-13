@@ -14,7 +14,11 @@ import { ActiveOrderRedirect } from "@/components/ActiveOrderRedirect";
 
 // Inner component to use the sidebar context
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
   const { sidebarOpen, sidebarHidden } = useSidebar();
+  
+  // Verificar si el usuario es administrador (MASTER_ADMIN o MANAGER)
+  const isAdmin = session?.user?.role === "MASTER_ADMIN" || session?.user?.role === "MANAGER";
   
   return (
     <div className="min-h-screen bg-background flex">
@@ -27,6 +31,8 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         <Header />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
+      {/* Cargar el listener de notificaciones para todos los usuarios, 
+          el componente filtra internamente según el rol */}
       <OrderNotificationListener />
       <ActiveOrderRedirect />
     </div>

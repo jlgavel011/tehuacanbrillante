@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Check, CheckCheck, Bell, AlertCircle, Info, CheckCircle } from 'lucide-react';
 import { useNotifications, Notification } from '@/lib/context/NotificationContext';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,80 @@ import { useRouter } from 'next/navigation';
 export function NotificationPanel() {
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll, isOpen, setIsOpen } = useNotifications();
   const router = useRouter();
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [isOpen]);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch('/api/notifications/check');
+      if (!response.ok) {
+        throw new Error('Error al cargar notificaciones');
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      markAllAsRead();
+      
+      const response = await fetch('/api/notifications/check', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al marcar notificaciones como leídas');
+      }
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    try {
+      markAsRead(notification.id);
+      
+      const response = await fetch('/api/notifications/check', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          notificationId: notification.id
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al marcar notificación como leída');
+      }
+      
+      if (notification.link) {
+        router.push(notification.link);
+      }
+      
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  const getUniqueNotificationArray = (notifications: Notification[]) => {
+    // Create a map to deduplicate notifications by ID
+    const uniqueMap: Record<string, Notification> = {};
+    notifications.forEach(notif => {
+      uniqueMap[notif.id] = notif;
+    });
+    return Object.values(uniqueMap);
+  };
 
   if (!isOpen) return null;
 
@@ -30,16 +104,10 @@ export function NotificationPanel() {
     }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
-    markAsRead(notification.id);
-    if (notification.link) {
-      router.push(notification.link);
-    }
-    setIsOpen(false);
-  };
-
-  const unreadNotifications = notifications.filter(n => !n.read);
-  const readNotifications = notifications.filter(n => n.read);
+  // Get unique arrays of notifications for each tab
+  const uniqueNotifications = getUniqueNotificationArray(notifications);
+  const unreadNotifications = getUniqueNotificationArray(notifications.filter(n => !n.read));
+  const readNotifications = getUniqueNotificationArray(notifications.filter(n => n.read));
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex justify-end">
@@ -63,7 +131,7 @@ export function NotificationPanel() {
                 variant="ghost" 
                 size="sm" 
                 className="text-xs flex items-center gap-1" 
-                onClick={markAllAsRead}
+                onClick={handleMarkAllAsRead}
               >
                 <CheckCheck className="h-4 w-4" />
                 <span>Marcar todas como leídas</span>
@@ -89,16 +157,16 @@ export function NotificationPanel() {
 
           <TabsContent value="all" className="flex-1 flex flex-col">
             <ScrollArea className="flex-1">
-              {notifications.length === 0 ? (
+              {uniqueNotifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full p-8 text-gray-500">
                   <Bell className="h-12 w-12 mb-3 text-gray-300" />
                   <p className="text-center">No hay notificaciones</p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {notifications.map(notification => (
+                  {uniqueNotifications.map((notification, index) => (
                     <NotificationItem 
-                      key={notification.id} 
+                      key={`all-${notification.id}-${index}`} 
                       notification={notification} 
                       onClick={handleNotificationClick}
                       getIcon={getIcon}
@@ -130,9 +198,9 @@ export function NotificationPanel() {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {unreadNotifications.map(notification => (
+                  {unreadNotifications.map((notification, index) => (
                     <NotificationItem 
-                      key={notification.id} 
+                      key={`unread-${notification.id}-${index}`} 
                       notification={notification} 
                       onClick={handleNotificationClick}
                       getIcon={getIcon}
@@ -152,9 +220,9 @@ export function NotificationPanel() {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {readNotifications.map(notification => (
+                  {readNotifications.map((notification, index) => (
                     <NotificationItem 
-                      key={notification.id} 
+                      key={`read-${notification.id}-${index}`} 
                       notification={notification} 
                       onClick={handleNotificationClick}
                       getIcon={getIcon}
@@ -167,7 +235,6 @@ export function NotificationPanel() {
         </Tabs>
       </div>
       
-      {/* Backdrop click to close */}
       <div 
         className="absolute inset-0 -z-10" 
         onClick={() => setIsOpen(false)}

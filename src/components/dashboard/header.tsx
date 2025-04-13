@@ -26,6 +26,7 @@ import { useSidebar } from "@/lib/context/SidebarContext";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@/lib/context/NotificationContext";
 import { NotificationPanel } from "@/components/notifications/NotificationPanel";
+import { useEffect } from "react";
 
 export function Header() {
   const { data: session } = useSession();
@@ -33,8 +34,20 @@ export function Header() {
   const router = useRouter();
   const { unreadCount: unreadNotificationsCount, isOpen: notificationsOpen, setIsOpen: setNotificationsOpen } = useNotifications();
   
+  // Add console logging for debugging notifications
+  useEffect(() => {
+    console.log("Notification state in header:", { 
+      unreadCount: unreadNotificationsCount, 
+      isOpen: notificationsOpen,
+      role: session?.user?.role
+    });
+  }, [unreadNotificationsCount, notificationsOpen, session?.user?.role]);
+  
   // Verificar si el usuario es jefe de producción
   const isProductionChief = session?.user?.role === "PRODUCTION_CHIEF";
+  
+  // Verificar si el usuario es administrador (MASTER_ADMIN o MANAGER)
+  const isAdmin = session?.user?.role === "MASTER_ADMIN" || session?.user?.role === "MANAGER";
 
   // Get the first letter of the user's name for the avatar fallback
   const getInitials = () => {
@@ -105,8 +118,8 @@ export function Header() {
                   </TooltipProvider>
                 )}
 
-                {/* Mostrar Notificaciones solo si NO es jefe de producción */}
-                {!isProductionChief && (
+                {/* Mostrar Notificaciones SOLO para administradores */}
+                {isAdmin && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -194,8 +207,8 @@ export function Header() {
         </div>
       </header>
 
-      {/* Panel de notificaciones - mostrar solo si NO es jefe de producción */}
-      {!isProductionChief && <NotificationPanel />}
+      {/* Panel de notificaciones - mostrar SOLO para administradores */}
+      {isAdmin && <NotificationPanel />}
     </>
   );
 } 
