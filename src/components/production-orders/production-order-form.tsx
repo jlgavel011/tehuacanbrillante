@@ -47,7 +47,7 @@ const formSchema = z.object({
   fechaProduccion: z.date({
     required_error: "Por favor selecciona una fecha",
   }),
-  turno: z.coerce.number().min(1).max(3),
+  turno: z.coerce.number().min(1).max(4),
   numeroOrden: z.coerce.number({
     required_error: "Por favor ingresa un número de orden",
   }).min(1, {
@@ -363,6 +363,7 @@ export default function ProductionOrderForm() {
                     <SelectItem value="1">Turno 1</SelectItem>
                     <SelectItem value="2">Turno 2</SelectItem>
                     <SelectItem value="3">Turno 3</SelectItem>
+                    <SelectItem value="4">Turno Mixto</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormDescription className="text-xs text-muted-foreground">

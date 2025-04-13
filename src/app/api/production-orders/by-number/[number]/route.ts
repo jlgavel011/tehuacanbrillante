@@ -63,12 +63,16 @@ export async function GET(
       velocidadProduccion: productoEnLinea?.velocidadProduccion || null,
     };
 
-    // Determine the order status
-    let estado = "pendiente";
-    if (order.cajasProducidas >= order.cajasPlanificadas) {
-      estado = "completada";
-    } else if (order.cajasProducidas > 0) {
-      estado = "en_progreso";
+    // Determinar el estado de la orden - usar el estado guardado en la base de datos si está disponible
+    let estado = order.estado || "pendiente";
+    
+    // Solo calcular el estado si no hay uno guardado en la base de datos
+    if (!order.estado) {
+      if (order.cajasProducidas >= order.cajasPlanificadas) {
+        estado = "completada";
+      } else if (order.cajasProducidas > 0) {
+        estado = "en_progreso";
+      }
     }
 
     console.log("[ORDER_BY_NUMBER_GET] Returning order with status:", estado);

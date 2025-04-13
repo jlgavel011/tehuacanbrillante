@@ -258,7 +258,7 @@ export function ProductionSummary({ orderId }: ProductionSummaryProps) {
               </CardDescription>
             </div>
             <Badge variant={
-              order.estado === "completada" ? "secondary" :
+              order.estado === "completada" ? "outline" :
               order.estado === "en_progreso" ? "default" : "outline"
             }>
               {order.estado === "completada" ? "Completada" :

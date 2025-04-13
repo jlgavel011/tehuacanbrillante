@@ -68,6 +68,26 @@ export function OrderSearch() {
       
       console.log("Searching for order number:", orderNumber);
       
+      // Verificar primero si el usuario tiene órdenes activas
+      const activeOrderResponse = await fetch('/api/user/active-order');
+      if (activeOrderResponse.ok) {
+        const activeOrderData = await activeOrderResponse.json();
+        
+        if (activeOrderData.hasActiveOrder && activeOrderData.activeOrder) {
+          // Si ya hay una orden activa, mostrar mensaje y redirigir
+          setError(`Ya tienes la orden #${activeOrderData.activeOrder.numeroOrden} activa. Debes finalizar esa orden antes de iniciar otra.`);
+          
+          setTimeout(() => {
+            if (confirm(`¿Quieres ir a gestionar tu orden activa (#${activeOrderData.activeOrder.numeroOrden})?`)) {
+              window.location.href = `/production-chief?orderId=${activeOrderData.activeOrder.id}&t=${Date.now()}`;
+            }
+          }, 1000);
+          
+          setIsLoading(false);
+          return;
+        }
+      }
+      
       // Fetch the production order
       const response = await fetch(`/api/production-orders/by-number/${orderNumber}`);
       
@@ -94,11 +114,36 @@ export function OrderSearch() {
 
   function handleManageProduction() {
     if (order) {
-      // Usar window.location para forzar recarga completa de la página
-      window.location.href = `/production-chief?orderId=${order.id}&t=${Date.now()}`;
+      setIsLoading(true);
       
-      // Mantener router.push como fallback
-      // router.push(`/production-chief?orderId=${order.id}`);
+      // Verificar la disponibilidad de la orden
+      fetch(`/api/production-orders/${order.id}/check-availability`)
+        .then(response => response.json())
+        .then(data => {
+          setIsLoading(false);
+          
+          if (data.available) {
+            // Si está disponible, redirigir a la página de gestión
+            window.location.href = `/production-chief?orderId=${order.id}&t=${Date.now()}`;
+          } else {
+            // Si no está disponible, mostrar un mensaje de error
+            setError(data.message);
+            
+            // Si el usuario tiene otra orden activa, ofrecer un enlace para ir a esa orden
+            if (data.activeOrderId) {
+              setTimeout(() => {
+                if (confirm(`${data.message}\n\n¿Deseas ir a gestionar esa orden?`)) {
+                  window.location.href = `/production-chief?orderId=${data.activeOrderId}&t=${Date.now()}`;
+                }
+              }, 500);
+            }
+          }
+        })
+        .catch(err => {
+          setIsLoading(false);
+          setError("Error al verificar disponibilidad de la orden");
+          console.error("Error checking order availability:", err);
+        });
     }
   }
 
@@ -176,7 +221,7 @@ export function OrderSearch() {
                 </CardDescription>
               </div>
               <Badge variant={
-                order.estado === "completada" ? "secondary" :
+                order.estado === "completada" ? "outline" :
                 order.estado === "en_progreso" ? "default" : "outline"
               }>
                 {order.estado === "completada" ? "Completada" :

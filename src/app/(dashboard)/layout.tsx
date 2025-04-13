@@ -10,6 +10,7 @@ import { useSidebar } from "@/lib/context/SidebarContext";
 import { DateRangeProvider } from "@/context/DateRangeContext";
 import { NotificationProvider } from "@/lib/context/NotificationContext";
 import OrderNotificationListener from "@/components/notifications/OrderNotificationListener";
+import { ActiveOrderRedirect } from "@/components/ActiveOrderRedirect";
 
 // Inner component to use the sidebar context
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
       <OrderNotificationListener />
+      <ActiveOrderRedirect />
     </div>
   );
 }

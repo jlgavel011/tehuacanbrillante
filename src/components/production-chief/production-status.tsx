@@ -447,27 +447,56 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
   }, [order?.estado, updateCountdown]);
 
   const fetchOrder = async () => {
-    if (!orderId) return;
-    
     setIsLoading(true);
     setError(null);
     
     try {
-      console.log("Fetching order with ID:", orderId);
+      if (!orderId) {
+        setIsLoading(false);
+        return;
+      }
+      
+      // Primero verificar la disponibilidad de la orden
+      const availabilityResponse = await fetch(`/api/production-orders/${orderId}/check-availability`);
+      const availabilityData = await availabilityResponse.json();
+      
+      if (!availabilityData.available) {
+        setError(availabilityData.message);
+        
+        // Si el usuario tiene otra orden activa, ofrecer un enlace para ir a esa orden
+        if (availabilityData.activeOrderId) {
+          setTimeout(() => {
+            if (confirm(`${availabilityData.message}\n\n¿Deseas ir a gestionar esa orden?`)) {
+              window.location.href = `/production-chief?orderId=${availabilityData.activeOrderId}&t=${Date.now()}`;
+            } else {
+              // Si no quiere ir a la otra orden, redirigir a la página principal
+              router.push("/production-chief");
+            }
+          }, 500);
+        } else {
+          // Si no hay otra orden activa pero está bloqueada, redirigir después de un tiempo
+          setTimeout(() => {
+            router.push("/production-chief");
+          }, 3000);
+        }
+        
+        setIsLoading(false);
+        return;
+      }
+      
+      // Si la orden está disponible, continuar con la carga normal
       const response = await fetch(`/api/production-orders/${orderId}`);
       
       if (!response.ok) {
-        console.error("Error response:", response.status, response.statusText);
-        throw new Error("Error al obtener la orden de producción");
+        throw new Error("Error al cargar la orden de producción");
       }
       
-      const orderData = await response.json();
-      console.log("Order data:", orderData);
-      setOrder(orderData);
+      const data = await response.json();
+      setOrder(data);
       
       // Set total cajas producidas - Asegurarnos de que usamos el valor del backend
-      console.log(`Estableciendo cajas producidas del backend: ${orderData.cajasProducidas}`);
-      setTotalCajasProducidas(orderData.cajasProducidas || 0);
+      console.log(`Estableciendo cajas producidas del backend: ${data.cajasProducidas}`);
+      setTotalCajasProducidas(data.cajasProducidas || 0);
       
       // También debemos obtener el historial activo para esta orden
       try {
@@ -502,15 +531,15 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
       if (storedUpdateTime) {
         console.log("Using lastUpdateTime from localStorage:", storedUpdateTime);
         setLastUpdateTime(storedUpdateTime);
-      } else if (orderData.lastUpdateTime) {
+      } else if (data.lastUpdateTime) {
         // Use lastUpdateTime from API if available and not in localStorage
-        console.log("Using lastUpdateTime from API:", orderData.lastUpdateTime);
-        const apiLastUpdateTime = new Date(orderData.lastUpdateTime);
+        console.log("Using lastUpdateTime from API:", data.lastUpdateTime);
+        const apiLastUpdateTime = new Date(data.lastUpdateTime);
         setLastUpdateTime(apiLastUpdateTime);
         
         // Also store this in localStorage for future refreshes
         storeLastUpdateTime(orderId, apiLastUpdateTime);
-      } else if (orderData.estado === "en_progreso") {
+      } else if (data.estado === "en_progreso") {
         // Fallback for older records without lastUpdateTime
         console.log("No lastUpdateTime in API response or localStorage, using current time");
         const now = new Date();
@@ -1946,12 +1975,8 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
               </CardDescription>
             </div>
             <Badge variant={
-              order.estado === "completada" ? "outline" : // Changed from secondary to outline
+              order.estado === "completada" ? "outline" :
               order.estado === "en_progreso" ? "default" : "outline"
-            } className={
-              order.estado === "completada" ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-100" : // Added yellow styling
-              order.estado === "en_progreso" ? "bg-green-100 text-green-800 hover:bg-green-100" : 
-              "bg-gray-100 text-gray-800 hover:bg-gray-100"
             }>
               {order.estado === "completada" ? "Completada" :
                order.estado === "en_progreso" ? "En Progreso" : "Pendiente"}
@@ -3225,7 +3250,10 @@ export function ProductionStatus({ onProductionStateChange }: { onProductionStat
       <div className="bg-white p-4 rounded-lg shadow-sm border">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-gray-500">Estado</h3>
-          <Badge className={order?.estado === "en_progreso" ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"}>
+          <Badge variant={
+            order?.estado === "completada" ? "outline" :
+            order?.estado === "en_progreso" ? "default" : "outline"
+          }>
             {order?.estado === "pendiente" ? "Pendiente" : 
              order?.estado === "en_progreso" ? "En Progreso" : 
              "Completada"}
