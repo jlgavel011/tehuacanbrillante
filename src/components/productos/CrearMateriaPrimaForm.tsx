@@ -21,6 +21,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function CrearMateriaPrimaForm({ onSuccess }: CrearMateriaPrimaFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [createdMateriaPrima, setCreatedMateriaPrima] = useState<{ id: string; nombre: string } | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -51,12 +52,24 @@ export default function CrearMateriaPrimaForm({ onSuccess }: CrearMateriaPrimaFo
       const newMateriaPrima = await response.json();
       toast.success("Materia prima creada exitosamente");
       form.reset();
+      
+      // Store the created materia prima but don't close modal yet
+      setCreatedMateriaPrima(newMateriaPrima);
+      
+      // Call onSuccess but don't let it close the modal
       onSuccess(newMateriaPrima);
     } catch (error: any) {
       console.error("Error creating materia prima:", error);
       toast.error(error.message || "Error al crear materia prima");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGuardarYCerrar = () => {
+    if (createdMateriaPrima) {
+      // The parent component will close the dialog
+      onSuccess(createdMateriaPrima);
     }
   };
 
@@ -81,9 +94,21 @@ export default function CrearMateriaPrimaForm({ onSuccess }: CrearMateriaPrimaFo
             )}
           />
           
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Creando..." : "Crear Materia Prima"}
-          </Button>
+          <div className="flex justify-end gap-2 pt-4">
+            {createdMateriaPrima ? (
+              <Button 
+                type="button" 
+                variant="default" 
+                onClick={handleGuardarYCerrar}
+              >
+                Guardar y Cerrar
+              </Button>
+            ) : (
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Creando..." : "Crear Materia Prima"}
+              </Button>
+            )}
+          </div>
         </form>
       </Form>
     </div>

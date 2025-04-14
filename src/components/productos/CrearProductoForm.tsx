@@ -256,7 +256,10 @@ export default function CrearProductoForm({ onSuccess }: CrearProductoFormProps)
   };
 
   const handleMateriaPrimaCreated = (newMateriaPrima: MateriaPrima) => {
-    setIsMateriaPrimaDialogOpen(false);
+    // Don't close the dialog automatically
+    // setIsMateriaPrimaDialogOpen(false);
+    
+    // Just fetch materias primas and add the new one to selected
     fetchMateriasPrimas().then(() => {
       // Add the newly created materia prima to the selected list
       setSelectedMateriasPrimas(prev => [...prev, newMateriaPrima]);

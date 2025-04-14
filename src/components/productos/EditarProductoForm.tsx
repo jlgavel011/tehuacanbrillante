@@ -289,8 +289,8 @@ export default function EditarProductoForm({ producto, onSuccess }: EditarProduc
     // Finally update the form value
     form.setValue("materiasPrimasIds", updatedSelected.map(mp => mp.id));
     
-    // Close the dialog
-    setIsMateriaPrimaDialogOpen(false);
+    // Don't close the dialog automatically
+    // setIsMateriaPrimaDialogOpen(false);
   };
 
   return (
