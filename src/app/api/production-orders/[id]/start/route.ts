@@ -95,7 +95,6 @@ export async function POST(
     }
 
     // Determine the state of the order
-    const newCajasProducidas = order.cajasProducidas === 0 ? 1 : order.cajasProducidas;
     const estado = "en_progreso";
     const now = new Date();
 
@@ -105,7 +104,6 @@ export async function POST(
         id: orderId,
       },
       data: {
-        cajasProducidas: newCajasProducidas,
         estado,
         lastUpdateTime: now
       },
