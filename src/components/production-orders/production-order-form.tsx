@@ -328,9 +328,15 @@ export default function ProductionOrderForm() {
                       mode="single"
                       selected={field.value}
                       onSelect={field.onChange}
-                      disabled={(date) =>
-                        date < new Date(new Date().setHours(0, 0, 0, 0))
-                      }
+                      disabled={(date) => {
+                        // Create a date object for yesterday (current date - 1 day)
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        yesterday.setHours(23, 59, 59, 999);
+                        
+                        // Disable dates that are before yesterday (allowing today)
+                        return date < yesterday;
+                      }}
                       initialFocus
                     />
                   </PopoverContent>
