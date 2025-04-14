@@ -178,18 +178,8 @@ export function Header() {
                       <span className="font-medium">{session?.user?.name || "Usuario"}</span>
                       <span className="text-xs text-gray-600">{session?.user?.email}</span>
                     </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 text-black hover:text-primary">
-                      <User className="h-4 w-4" />
-                      <span>Mi perfil</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 text-black hover:text-primary">
-                      <Settings className="h-4 w-4" />
-                      <span>Configuración</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className="flex items-center gap-2 cursor-pointer text-black hover:bg-primary/10 hover:text-primary"
+                      className="flex items-center gap-2 cursor-pointer text-black hover:bg-primary/10 hover:text-primary mt-1"
                       onClick={() =>
                         signOut({
                           callbackUrl: "/login",

@@ -156,7 +156,7 @@ export function NotificationPanel() {
           </TabsList>
 
           <TabsContent value="all" className="flex-1 flex flex-col">
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 max-h-[calc(100vh-170px)]">
               {uniqueNotifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full p-8 text-gray-500">
                   <Bell className="h-12 w-12 mb-3 text-gray-300" />
@@ -190,7 +190,7 @@ export function NotificationPanel() {
           </TabsContent>
 
           <TabsContent value="unread" className="flex-1 flex flex-col">
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 max-h-[calc(100vh-170px)]">
               {unreadNotifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full p-8 text-gray-500">
                   <Check className="h-12 w-12 mb-3 text-gray-300" />
@@ -209,10 +209,22 @@ export function NotificationPanel() {
                 </div>
               )}
             </ScrollArea>
+            {unreadNotifications.length > 0 && (
+              <div className="p-3 border-t border-gray-200">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full text-gray-500 text-xs"
+                  onClick={handleMarkAllAsRead}
+                >
+                  Marcar todas como leídas
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="read" className="flex-1 flex flex-col">
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 max-h-[calc(100vh-170px)]">
               {readNotifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full p-8 text-gray-500">
                   <Bell className="h-12 w-12 mb-3 text-gray-300" />
@@ -231,6 +243,18 @@ export function NotificationPanel() {
                 </div>
               )}
             </ScrollArea>
+            {readNotifications.length > 0 && (
+              <div className="p-3 border-t border-gray-200">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full text-gray-500 text-xs"
+                  onClick={clearAll}
+                >
+                  Limpiar notificaciones leídas
+                </Button>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

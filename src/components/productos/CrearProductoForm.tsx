@@ -71,6 +71,7 @@ export default function CrearProductoForm({ onSuccess }: CrearProductoFormProps)
   const [selectedMateriasPrimas, setSelectedMateriasPrimas] = useState<MateriaPrima[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [nombreProducto, setNombreProducto] = useState("");
+  const [materiaPrimaSearch, setMateriaPrimaSearch] = useState("");
   
   // Dialogs state
   const [isCajaDialogOpen, setIsCajaDialogOpen] = useState(false);
@@ -495,10 +496,23 @@ export default function CrearProductoForm({ onSuccess }: CrearProductoFormProps)
               </div>
               
               <div className="mb-2 font-medium">Materias Primas Disponibles:</div>
+              
+              {/* Buscador de materias primas */}
+              <div className="mb-3">
+                <Input
+                  type="text"
+                  placeholder="Buscar materia prima..."
+                  value={materiaPrimaSearch}
+                  onChange={(e) => setMateriaPrimaSearch(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              
               <ScrollArea className="h-40 w-full rounded-md border">
                 <div className="p-4 flex flex-wrap gap-2">
                   {materiasPrimas
                     .filter(mp => !selectedMateriasPrimas.some(selected => selected.id === mp.id))
+                    .filter(mp => mp.nombre.toLowerCase().includes(materiaPrimaSearch.toLowerCase()))
                     .map((mp) => (
                       <Badge 
                         key={mp.id} 
