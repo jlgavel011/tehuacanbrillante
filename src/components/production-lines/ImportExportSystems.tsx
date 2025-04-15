@@ -152,7 +152,7 @@ export default function ImportExportSystems() {
             Importar CSV
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Importar Sistemas desde CSV</DialogTitle>
             <DialogDescription>
@@ -185,20 +185,20 @@ export default function ImportExportSystems() {
                     <HelpCircle className="h-4 w-4 mr-2" />
                     ¿Cómo funciona la importación?
                   </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="text-sm space-y-2 text-gray-600">
+                  <AccordionContent className="px-2">
+                    <div className="text-sm space-y-3 text-gray-600">
                       <p>La importación de sistemas mediante CSV le permite crear múltiples sistemas, subsistemas y sub-subsistemas de una sola vez.</p>
                       
-                      <h4 className="font-medium text-black mt-3">Formato del Archivo:</h4>
-                      <ul className="list-disc pl-5 space-y-1">
+                      <h4 className="font-medium text-black mt-4">Formato del Archivo:</h4>
+                      <ul className="list-disc pl-5 space-y-1.5">
                         <li>Columna <strong>Sistema</strong>: Nombre del sistema (obligatorio)</li>
                         <li>Columna <strong>Subsistema</strong>: Nombre del subsistema (opcional)</li>
                         <li>Columna <strong>Sub-subsistema</strong>: Nombre del sub-subsistema (opcional)</li>
                         <li>Columna <strong>ID_Linea_Produccion</strong>: ID de la línea de producción (obligatorio)</li>
                       </ul>
 
-                      <h4 className="font-medium text-black mt-3">Ejemplo de CSV:</h4>
-                      <pre className="bg-gray-100 p-2 rounded-md text-xs overflow-x-auto">
+                      <h4 className="font-medium text-black mt-4">Ejemplo de CSV:</h4>
+                      <pre className="bg-gray-100 p-3 rounded-md text-xs overflow-x-auto">
                         Sistema,Subsistema,Sub-subsistema,ID_Linea_Produccion<br/>
                         Sistema Mezcla,,,[ID_LINEA]<br/>
                         Sistema Envasado,Subsistema Llenado,,[ID_LINEA]<br/>
@@ -206,8 +206,8 @@ export default function ImportExportSystems() {
                         Sistema Envasado,Subsistema Sellado,,[ID_LINEA]
                       </pre>
 
-                      <h4 className="font-medium text-black mt-3">Notas Importantes:</h4>
-                      <ul className="list-disc pl-5 space-y-1">
+                      <h4 className="font-medium text-black mt-4">Notas Importantes:</h4>
+                      <ul className="list-disc pl-5 space-y-1.5">
                         <li>Reemplace <code>[ID_LINEA]</code> con el ID real de la línea de producción</li>
                         <li>Si un sistema, subsistema o sub-subsistema ya existe, será reutilizado</li>
                         <li>Los sub-subsistemas requieren un subsistema asociado</li>
@@ -219,37 +219,37 @@ export default function ImportExportSystems() {
               </Accordion>
             </div>
           ) : (
-            <div className="space-y-4 py-4">
+            <div className="space-y-5 py-4">
               <Alert variant="default" className="bg-green-50 border-green-200">
-                <Check className="h-4 w-4 text-green-600" />
+                <Check className="h-5 w-5 text-green-600" />
                 <AlertTitle className="text-green-800">Importación completada</AlertTitle>
                 <AlertDescription className="text-green-700">
                   Se ha procesado el archivo correctamente.
                 </AlertDescription>
               </Alert>
 
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="border rounded-lg p-3 space-y-1">
-                  <h4 className="font-medium text-sm">Sistemas</h4>
-                  <div className="text-xs text-gray-500">
+              <div className="grid grid-cols-3 gap-6 text-center">
+                <div className="border rounded-lg p-4 space-y-2 shadow-sm">
+                  <h4 className="font-medium">Sistemas</h4>
+                  <div className="grid gap-1.5 text-sm">
                     <div>Creados: <span className="text-green-600 font-medium">{importResult.sistemas.creados}</span></div>
                     <div>Existentes: <span className="text-blue-600 font-medium">{importResult.sistemas.existentes}</span></div>
                     <div>Fallidos: <span className="text-red-600 font-medium">{importResult.sistemas.fallidos}</span></div>
                   </div>
                 </div>
                 
-                <div className="border rounded-lg p-3 space-y-1">
-                  <h4 className="font-medium text-sm">Subsistemas</h4>
-                  <div className="text-xs text-gray-500">
+                <div className="border rounded-lg p-4 space-y-2 shadow-sm">
+                  <h4 className="font-medium">Subsistemas</h4>
+                  <div className="grid gap-1.5 text-sm">
                     <div>Creados: <span className="text-green-600 font-medium">{importResult.subsistemas.creados}</span></div>
                     <div>Existentes: <span className="text-blue-600 font-medium">{importResult.subsistemas.existentes}</span></div>
                     <div>Fallidos: <span className="text-red-600 font-medium">{importResult.subsistemas.fallidos}</span></div>
                   </div>
                 </div>
                 
-                <div className="border rounded-lg p-3 space-y-1">
-                  <h4 className="font-medium text-sm">Sub-subsistemas</h4>
-                  <div className="text-xs text-gray-500">
+                <div className="border rounded-lg p-4 space-y-2 shadow-sm">
+                  <h4 className="font-medium">Sub-subsistemas</h4>
+                  <div className="grid gap-1.5 text-sm">
                     <div>Creados: <span className="text-green-600 font-medium">{importResult.subsubsistemas.creados}</span></div>
                     <div>Existentes: <span className="text-blue-600 font-medium">{importResult.subsubsistemas.existentes}</span></div>
                     <div>Fallidos: <span className="text-red-600 font-medium">{importResult.subsubsistemas.fallidos}</span></div>
@@ -258,15 +258,17 @@ export default function ImportExportSystems() {
               </div>
 
               {importResult.errores.length > 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
+                <Alert variant="destructive" className="mt-4">
+                  <AlertCircle className="h-5 w-5" />
                   <AlertTitle>Errores durante la importación</AlertTitle>
                   <AlertDescription>
-                    <ul className="list-disc pl-5 text-xs mt-2 space-y-1">
-                      {importResult.errores.map((error, index) => (
-                        <li key={index}>{error}</li>
-                      ))}
-                    </ul>
+                    <div className="mt-2 max-h-40 overflow-y-auto">
+                      <ul className="list-disc pl-5 space-y-1.5">
+                        {importResult.errores.map((error, index) => (
+                          <li key={index} className="text-sm">{error}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </AlertDescription>
                 </Alert>
               )}
@@ -280,29 +282,31 @@ export default function ImportExportSystems() {
                   variant="outline" 
                   onClick={handleDownloadTemplate}
                   disabled={isLoading}
+                  className="gap-2"
                 >
-                  <Download className="mr-2 h-4 w-4" />
+                  <Download className="h-4 w-4" />
                   Descargar Plantilla
                 </Button>
                 <Button 
                   onClick={handleImport} 
                   disabled={!file || isLoading}
+                  className="gap-2"
                 >
                   {isLoading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       Importando...
                     </>
                   ) : (
                     <>
-                      <Upload className="mr-2 h-4 w-4" />
+                      <Upload className="h-4 w-4" />
                       Importar
                     </>
                   )}
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsImportOpen(false)}>
+              <Button onClick={() => setIsImportOpen(false)} className="px-6">
                 Cerrar
               </Button>
             )}
