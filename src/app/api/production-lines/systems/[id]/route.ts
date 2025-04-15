@@ -17,14 +17,14 @@ export async function GET(
 
     const { id } = params;
 
-    const system = await prisma.system.findUnique({
+    const system = await prisma.sistema.findUnique({
       where: {
         id,
       },
       include: {
-        subsystems: {
+        subsistemas: {
           include: {
-            subsubsystems: true,
+            subsubsistemas: true,
           },
         },
       },
@@ -71,7 +71,7 @@ export async function PUT(
     }
 
     // Verificar si el sistema existe
-    const existingSystem = await prisma.system.findUnique({
+    const existingSystem = await prisma.sistema.findUnique({
       where: {
         id,
       },
@@ -85,7 +85,7 @@ export async function PUT(
     }
 
     // Actualizar el sistema
-    const updatedSystem = await prisma.system.update({
+    const updatedSystem = await prisma.sistema.update({
       where: {
         id,
       },
@@ -132,9 +132,23 @@ export async function DELETE(
     const { id } = params;
 
     // Verificar si el sistema existe
-    const existingSystem = await prisma.system.findUnique({
+    const existingSystem = await prisma.sistema.findUnique({
       where: {
         id,
+      },
+      include: {
+        paros: {
+          select: {
+            id: true,
+          },
+          take: 1, // Solo necesitamos saber si hay al menos uno
+        },
+        subsistemas: {
+          select: {
+            id: true,
+          },
+          take: 1, // Solo necesitamos saber si hay al menos uno
+        },
       },
     });
 
@@ -145,8 +159,28 @@ export async function DELETE(
       );
     }
 
+    // Verificar si hay paros asociados al sistema
+    if (existingSystem.paros && existingSystem.paros.length > 0) {
+      return NextResponse.json(
+        { 
+          error: "No se puede eliminar el sistema porque hay paros asociados. Elimine los paros primero o desasócielos de este sistema." 
+        },
+        { status: 400 }
+      );
+    }
+
+    // Verificar si hay subsistemas asociados al sistema
+    if (existingSystem.subsistemas && existingSystem.subsistemas.length > 0) {
+      return NextResponse.json(
+        { 
+          error: "No se puede eliminar el sistema porque hay subsistemas asociados. Elimine los subsistemas primero." 
+        },
+        { status: 400 }
+      );
+    }
+
     // Eliminar el sistema
-    await prisma.system.delete({
+    await prisma.sistema.delete({
       where: {
         id,
       },

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import ImportExportSystems from "@/components/production-lines/ImportExportSystems";
 
 type ProductionLine = {
   id: string;
@@ -225,160 +226,144 @@ export function SystemsTab() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium">Sistemas</h3>
-        <Button 
-          id="add-system-button"
-          onClick={() => {
-            setIsEditMode(false);
-            setCurrentSystem(null);
-            setNewSystemName("");
-            setSelectedProductionLineId("");
-            setIsDialogOpen(true);
-          }}
-        >
-          <PlusCircle className="h-4 w-4 mr-2" /> Añadir
-        </Button>
-      </div>
-
-      {isLoading && systems.length === 0 ? (
-        <div className="flex justify-center items-center py-10">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : systems.length === 0 ? (
-        <Card className="bg-white border shadow-sm">
-          <CardContent className="py-10">
-            <div className="text-center text-black">
-              <p>No hay sistemas registrados.</p>
-              <Button 
+    <div className="p-1">
+      <Card>
+        <CardHeader className="px-6 py-5 flex flex-row items-center justify-between bg-gray-50 border-b rounded-t-lg">
+          <CardTitle className="text-lg font-medium">Sistemas</CardTitle>
+          <div className="flex space-x-2">
+            <ImportExportSystems />
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={() => {
+                setIsEditMode(false);
+                setNewSystemName("");
+                setSelectedProductionLineId("");
+                setIsDialogOpen(true);
+              }}
+            >
+              <PlusCircle className="h-4 w-4 mr-2" /> Nuevo sistema
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex justify-center items-center p-6">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : systems.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">No hay sistemas creados aún.</p>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setIsEditMode(false);
-                  setCurrentSystem(null);
                   setNewSystemName("");
                   setSelectedProductionLineId("");
                   setIsDialogOpen(true);
                 }}
-                variant="link"
-                className="mt-2"
               >
-                Crear un sistema
+                <PlusCircle className="h-4 w-4 mr-2" /> Crear primer sistema
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {systems.map((system) => (
-            <Card key={system.id} className="overflow-hidden bg-white border shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-semibold text-black">{system.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-gray-500 mb-4">
-                  <span className="font-medium text-black">Línea de Producción:</span>{" "}
-                  <span className="text-black">{system.productionLine?.name || getProductionLineName(system.productionLineId)}</span>
+          ) : (
+            <div className="divide-y">
+              {systems.map((system) => (
+                <div
+                  key={system.id}
+                  className="flex items-center justify-between p-4 hover:bg-gray-50"
+                >
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-medium">{system.name}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Línea: {getProductionLineName(system.productionLineId)}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setCurrentSystem(system);
+                        setNewSystemName(system.name);
+                        setSelectedProductionLineId(system.productionLineId);
+                        setIsEditMode(true);
+                        setIsDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteSystem(system.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex justify-end gap-2 mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setIsEditMode(true);
-                      setCurrentSystem(system);
-                      setNewSystemName(system.name);
-                      setSelectedProductionLineId(system.productionLineId);
-                      setIsDialogOpen(true);
-                    }}
-                    className="h-8 px-2"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handleDeleteSystem(system.id)}
-                    className="h-8 px-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              ))}
+            </div>
+          )}
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {isEditMode ? "Editar Sistema" : "Crear Nuevo Sistema"}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditMode
-                ? "Actualiza los detalles del sistema seleccionado."
-                : "Completa el formulario para crear un nuevo sistema."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name" className="text-black">Nombre</Label>
-              <Input
-                id="name"
-                placeholder="Nombre del sistema"
-                value={newSystemName}
-                onChange={(e) => setNewSystemName(e.target.value)}
-                className="text-black"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="productionLine" className="text-black">Línea de Producción</Label>
-              <Select
-                value={selectedProductionLineId}
-                onValueChange={setSelectedProductionLineId}
-              >
-                <SelectTrigger id="productionLine" className="text-black">
-                  <SelectValue placeholder="Selecciona una línea de producción" />
-                </SelectTrigger>
-                <SelectContent>
-                  {productionLines.map((pl) => (
-                    <SelectItem key={pl.id} value={pl.id}>
-                      {pl.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsDialogOpen(false)}
-              disabled={isLoading}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={isEditMode ? handleUpdateSystem : handleCreateSystem}
-              disabled={isLoading || !newSystemName.trim() || !selectedProductionLineId}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Guardando...
-                </>
-              ) : isEditMode ? (
-                "Actualizar"
-              ) : (
-                "Crear"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* Dialog for create/edit system */}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{isEditMode ? "Editar sistema" : "Crear nuevo sistema"}</DialogTitle>
+                <DialogDescription>
+                  {isEditMode
+                    ? "Actualice la información del sistema"
+                    : "Complete los campos para crear un nuevo sistema"}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nombre del sistema</Label>
+                  <Input
+                    id="name"
+                    placeholder="Ej. Sistema de envasado"
+                    value={newSystemName}
+                    onChange={(e) => setNewSystemName(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="productionLine">Línea de producción</Label>
+                  <Select
+                    value={selectedProductionLineId}
+                    onValueChange={setSelectedProductionLineId}
+                  >
+                    <SelectTrigger id="productionLine">
+                      <SelectValue placeholder="Seleccionar línea de producción" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productionLines.map((line) => (
+                        <SelectItem key={line.id} value={line.id}>
+                          {line.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  onClick={isEditMode ? handleUpdateSystem : handleCreateSystem}
+                >
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isEditMode ? "Actualizar" : "Crear"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

@@ -17,14 +17,14 @@ export async function GET(
 
     const { id } = params;
 
-    const subsubsystem = await prisma.subsubsystem.findUnique({
+    const subsubsystem = await prisma.subsubsistema.findUnique({
       where: {
         id,
       },
       include: {
-        subsystem: {
+        subsistema: {
           include: {
-            system: {
+            sistema: {
               include: {
                 lineaProduccion: true,
               },
@@ -75,7 +75,7 @@ export async function PUT(
     }
 
     // Verificar si el sub-subsistema existe
-    const existingSubsubsystem = await prisma.subsubsystem.findUnique({
+    const existingSubsubsystem = await prisma.subsubsistema.findUnique({
       where: {
         id,
       },
@@ -89,7 +89,7 @@ export async function PUT(
     }
 
     // Actualizar el sub-subsistema
-    const updatedSubsubsystem = await prisma.subsubsystem.update({
+    const updatedSubsubsystem = await prisma.subsubsistema.update({
       where: {
         id,
       },
@@ -107,7 +107,7 @@ export async function PUT(
         proximoMantenimiento: body.proximoMantenimiento
           ? new Date(body.proximoMantenimiento)
           : undefined,
-        subsystemId: body.subsystemId,
+        subsistemaId: body.subsystemId,
       },
     });
 
@@ -136,9 +136,17 @@ export async function DELETE(
     const { id } = params;
 
     // Verificar si el sub-subsistema existe
-    const existingSubsubsystem = await prisma.subsubsystem.findUnique({
+    const existingSubsubsystem = await prisma.subsubsistema.findUnique({
       where: {
         id,
+      },
+      include: {
+        paros: {
+          select: {
+            id: true,
+          },
+          take: 1, // Solo necesitamos saber si hay al menos uno
+        },
       },
     });
 
@@ -149,8 +157,18 @@ export async function DELETE(
       );
     }
 
+    // Verificar si hay paros asociados al sub-subsistema
+    if (existingSubsubsystem.paros && existingSubsubsystem.paros.length > 0) {
+      return NextResponse.json(
+        { 
+          error: "No se puede eliminar el sub-subsistema porque hay paros asociados. Elimine los paros primero o desasócielos de este sub-subsistema." 
+        },
+        { status: 400 }
+      );
+    }
+
     // Eliminar el sub-subsistema
-    await prisma.subsubsystem.delete({
+    await prisma.subsubsistema.delete({
       where: {
         id,
       },

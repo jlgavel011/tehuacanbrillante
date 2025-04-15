@@ -56,6 +56,7 @@ import {
   DraggableProvided,
   DraggableStateSnapshot
 } from "react-beautiful-dnd";
+import ImportExportSystems from "@/components/production-lines/ImportExportSystems";
 
 type ProductionLine = {
   id: string;
@@ -296,9 +297,24 @@ export function HierarchicalView({ productionLineId }: HierarchicalViewProps) {
       }
       
       const response = await fetch(endpoint, { method: 'DELETE' });
+      
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Error al eliminar');
+        
+        // En lugar de lanzar un error, lo manejamos directamente
+        if (data && data.error) {
+          console.log(`Error del servidor: ${data.error}`);
+          toast.error(data.error);
+          setIsDeleteDialogOpen(false);
+          setDeleteInfo(null);
+          return;
+        } else {
+          console.log(`Error genérico al eliminar ${getTypeLabel(deleteInfo.type).toLowerCase()}`);
+          toast.error(`Error al eliminar el ${getTypeLabel(deleteInfo.type).toLowerCase()}`);
+          setIsDeleteDialogOpen(false);
+          setDeleteInfo(null);
+          return;
+        }
       }
       
       // Update local state
@@ -320,7 +336,7 @@ export function HierarchicalView({ productionLineId }: HierarchicalViewProps) {
       toast.success(`${getTypeLabel(deleteInfo.type)} eliminado correctamente`);
     } catch (error) {
       console.error('Error deleting item:', error);
-      toast.error(error instanceof Error ? error.message : 'Error al eliminar');
+      toast.error(error instanceof Error ? error.message : `Error al eliminar el ${getTypeLabel(deleteInfo.type).toLowerCase()}`);
     } finally {
       setIsDeleteDialogOpen(false);
       setDeleteInfo(null);
@@ -614,6 +630,9 @@ export function HierarchicalView({ productionLineId }: HierarchicalViewProps) {
         </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
+          <div className="flex justify-end mb-4">
+            <ImportExportSystems />
+          </div>
           <div className="grid grid-cols-3 gap-6 px-4 pb-6">
             {/* Systems Column */}
             <div className="bg-gray-50 dark:bg-gray-900 p-5 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm">

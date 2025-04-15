@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import ImportExportSystems from "./ImportExportSystems";
 
 type LineaProduccion = {
   id: string;
@@ -152,75 +153,78 @@ export default function SystemsTab() {
           <h2 className="text-xl font-semibold text-black">Listado de Sistemas</h2>
           <p className="text-sm text-gray-500">Gestione los sistemas que componen las líneas de producción</p>
         </div>
-        <Dialog open={open} onOpenChange={(newOpen) => {
-          setOpen(newOpen);
-          if (!newOpen) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button variant="default">
-              <Plus className="mr-2 h-4 w-4" /> Agregar sistema
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingId ? 'Editar' : 'Agregar'} Sistema</DialogTitle>
-              <DialogDescription>
-                {editingId 
-                  ? 'Modifique los datos del sistema.' 
-                  : 'Complete el formulario para agregar un nuevo sistema.'}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-1 gap-2">
-                  <label htmlFor="nombre" className="text-sm font-medium text-black">
-                    Nombre
-                  </label>
-                  <Input
-                    id="nombre"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    placeholder="Ingrese el nombre del sistema"
-                    required
-                  />
+        <div className="flex gap-2">
+          <ImportExportSystems />
+          <Dialog open={open} onOpenChange={(newOpen) => {
+            setOpen(newOpen);
+            if (!newOpen) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="default">
+                <Plus className="mr-2 h-4 w-4" /> Agregar sistema
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingId ? 'Editar' : 'Agregar'} Sistema</DialogTitle>
+                <DialogDescription>
+                  {editingId 
+                    ? 'Modifique los datos del sistema.' 
+                    : 'Complete el formulario para agregar un nuevo sistema.'}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    <label htmlFor="nombre" className="text-sm font-medium text-black">
+                      Nombre
+                    </label>
+                    <Input
+                      id="nombre"
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      placeholder="Ingrese el nombre del sistema"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    <label htmlFor="lineaProduccion" className="text-sm font-medium text-black">
+                      Línea de Producción
+                    </label>
+                    <Select value={lineaProduccionId} onValueChange={setLineaProduccionId}>
+                      <SelectTrigger id="lineaProduccion">
+                        <SelectValue placeholder="Seleccione una línea de producción" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {lineasProduccion.map((linea) => (
+                          <SelectItem key={linea.id} value={linea.id}>
+                            {linea.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
-                  <label htmlFor="lineaProduccion" className="text-sm font-medium text-black">
-                    Línea de Producción
-                  </label>
-                  <Select value={lineaProduccionId} onValueChange={setLineaProduccionId}>
-                    <SelectTrigger id="lineaProduccion">
-                      <SelectValue placeholder="Seleccione una línea de producción" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {lineasProduccion.map((linea) => (
-                        <SelectItem key={linea.id} value={linea.id}>
-                          {linea.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setOpen(false);
-                    resetForm();
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={submitLoading}>
-                  {submitLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingId ? 'Actualizar' : 'Guardar'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setOpen(false);
+                      resetForm();
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={submitLoading}>
+                    {submitLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingId ? 'Actualizar' : 'Guardar'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {loading ? (
@@ -256,16 +260,15 @@ export default function SystemsTab() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="icon"
                         onClick={() => handleEdit(sistema)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="icon"
-                        className="text-red-500 hover:text-red-600"
                         onClick={() => handleDelete(sistema.id)}
                       >
                         <Trash2 className="h-4 w-4" />
