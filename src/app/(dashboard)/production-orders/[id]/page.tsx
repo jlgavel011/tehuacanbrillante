@@ -9,10 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Metadata } from "next";
 
+type PageParams = {
+  id: string;
+};
+
 interface ProductionOrderPageProps {
-  params: {
-    id: string;
-  };
+  params: PageParams;
 }
 
 // Define interfaces for the data
@@ -33,7 +35,7 @@ interface Paro {
 }
 
 // Generate dynamic metadata
-export async function generateMetadata({ params }: ProductionOrderPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: PageParams }): Promise<Metadata> {
   // Fetch the production order
   const orden = await prisma.produccion.findUnique({
     where: {
@@ -57,7 +59,7 @@ export async function generateMetadata({ params }: ProductionOrderPageProps): Pr
   };
 }
 
-export default async function ProductionOrderPage({ params }: ProductionOrderPageProps) {
+export default async function ProductionOrderPage({ params }: { params: PageParams }) {
   // Fetch the production order
   const orden = await prisma.produccion.findUnique({
     where: {
@@ -99,7 +101,7 @@ export default async function ProductionOrderPage({ params }: ProductionOrderPag
 
   // Calculate total pause time
   const totalPauseTime = orden.paros.reduce(
-    (total, paro) => total + paro.tiempoMinutos, 
+    (total: number, paro: { tiempoMinutos: number }) => total + paro.tiempoMinutos, 
     0
   );
 
@@ -245,7 +247,7 @@ export default async function ProductionOrderPage({ params }: ProductionOrderPag
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {orden.paros.map((paro) => (
+                      {orden.paros.map((paro: Paro) => (
                         <tr key={paro.id} className="hover:bg-muted/50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <Badge variant="outline">{paro.tipoParo.nombre}</Badge>

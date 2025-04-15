@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -40,19 +40,24 @@ type ProductionOrder = {
   }[];
 };
 
-export default function ProductionSummaryPage({ params }: { params: { id: string } }) {
+export default function ProductionSummaryPage() {
   const router = useRouter();
+  const params = useParams();
+  const orderId = params?.id as string;
+  
   const [order, setOrder] = useState<ProductionOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!orderId) return;
+    
     const fetchOrder = async () => {
       setLoading(true);
       setError(null);
       
       try {
-        const response = await fetch(`/api/production-orders/${params.id}?includeStops=true`);
+        const response = await fetch(`/api/production-orders/${orderId}?includeStops=true`);
         
         if (!response.ok) {
           throw new Error("Error al obtener la información de la orden");
@@ -69,7 +74,7 @@ export default function ProductionSummaryPage({ params }: { params: { id: string
     };
     
     fetchOrder();
-  }, [params.id]);
+  }, [orderId]);
 
   const handleBack = () => {
     router.push("/production-chief?tab=search");

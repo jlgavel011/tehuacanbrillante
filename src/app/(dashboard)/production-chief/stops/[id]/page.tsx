@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -50,8 +50,11 @@ type StopType = {
   nombre: string;
 };
 
-export default function ProductionStopsPage({ params }: { params: { id: string } }) {
+export default function ProductionStopsPage() {
   const router = useRouter();
+  const params = useParams();
+  const orderId = params?.id as string;
+  
   const [order, setOrder] = useState<ProductionOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,13 +68,15 @@ export default function ProductionStopsPage({ params }: { params: { id: string }
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (!orderId) return;
+    
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       
       try {
         // Fetch order data
-        const orderResponse = await fetch(`/api/production-orders/${params.id}?includeStops=true`);
+        const orderResponse = await fetch(`/api/production-orders/${orderId}?includeStops=true`);
         
         if (!orderResponse.ok) {
           throw new Error("Error al obtener la información de la orden");
@@ -98,7 +103,7 @@ export default function ProductionStopsPage({ params }: { params: { id: string }
     };
     
     fetchData();
-  }, [params.id]);
+  }, [orderId]);
 
   const handleBack = () => {
     if (order?.estado === "completada") {
@@ -141,7 +146,7 @@ export default function ProductionStopsPage({ params }: { params: { id: string }
       }
       
       // Refresh the order data
-      const updatedOrderResponse = await fetch(`/api/production-orders/${params.id}?includeStops=true`);
+      const updatedOrderResponse = await fetch(`/api/production-orders/${orderId}?includeStops=true`);
       const updatedOrderData = await updatedOrderResponse.json();
       setOrder(updatedOrderData);
       
@@ -173,7 +178,7 @@ export default function ProductionStopsPage({ params }: { params: { id: string }
       }
       
       // Refresh the order data
-      const updatedOrderResponse = await fetch(`/api/production-orders/${params.id}?includeStops=true`);
+      const updatedOrderResponse = await fetch(`/api/production-orders/${orderId}?includeStops=true`);
       const updatedOrderData = await updatedOrderResponse.json();
       setOrder(updatedOrderData);
       
